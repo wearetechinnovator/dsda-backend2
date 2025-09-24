@@ -1,8 +1,8 @@
 const router = require("express").Router();
-const hotelRoute = require("./hotel.route");
+const bookingRoute = require("./booking.route");
 
 
 
-router.use("/hotel", hotelRoute);
+router.use("/check-in", bookingRoute);
 
 module.exports = router;

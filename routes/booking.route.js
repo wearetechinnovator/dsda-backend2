@@ -8,12 +8,11 @@ const {
 
 router
     .route('/add-booking')
-    .post(addBooking)
+    .post(addBooking);
 
 router
     .route('/get-booking')
-    .post(getBooking)
-
+    .post(getBooking);
 
 
 

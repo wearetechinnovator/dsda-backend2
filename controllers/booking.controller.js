@@ -11,18 +11,16 @@ const addBooking = async (req, res) => {
     } = req.body;
 
     if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime].some(field => field === '')) {
-        return res.status(401).json({err: 'All fields are required'})
+        return res.status(401).json({ err: 'All fields are required' })
     }
 
     for (let i = 0; i < guestList.length; i++) {
         const guest = guestList[i];
         if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.idProof, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
-            return res.status(401).json({err: 'All fields are required'})
+            return res.status(401).json({ err: 'All fields are required' })
         }
     }
-    
-    // ===================================== [All Validation Close here] ==================================
-
+    // ============================= [All Validation Close here] ==========================
 
     try {
         let getSiteSetting;
@@ -104,7 +102,7 @@ const getBooking = async (req, res) => {
         const redisDB = await connectRedis();
 
         if (id) {
-            const data = await bookingDetailsModel.findOne({ _id: id, isDel: "0" });
+            const data = await bookingDetailsModel.findOne({ _id: id, IsDel: "0" });
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -114,7 +112,7 @@ const getBooking = async (req, res) => {
 
         if (search) {
             const regex = new RegExp(search, "i");
-            const data = await bookingDetailsModel.find({ isDel: "0", name: regex })
+            const data = await bookingDetailsModel.find({ IsDel: "0", name: regex })
 
             return res.status(200).json(data);
         }
@@ -127,9 +125,9 @@ const getBooking = async (req, res) => {
         //     return res.status(200).json(JSON.parse(cachedUsers));
         // }
 
-        const data = await bookingDetailsModel.find({ isDel: trash ? "1" : "0" })
+        const data = await bookingDetailsModel.find({ IsDel: trash ? "1" : "0" })
             .skip(skip).limit(limit).sort({ _id: -1 });
-        const totalCount = await bookingDetailsModel.countDocuments({ isDel: trash ? "1" : "0" });
+        const totalCount = await bookingDetailsModel.countDocuments({ IsDel: trash ? "1" : "0" });
 
         const result = { data: data, total: totalCount, page, limit };
 
@@ -144,8 +142,63 @@ const getBooking = async (req, res) => {
 }
 
 
+// ::::::::::::::::::: [GET HEAD OF BOOKING FROM BOOKING MODEL] ::::::::::::::::
+const getHeadOfBooking = async (req, res) => {
+    const id = req.body?.id;
+    const limit = req.body?.limit ?? 10;
+    const page = req.body?.page ?? 1;
+    const search = req.body?.search?.trim();
+    const trash = req.body?.trash;
+    const skip = (page - 1) * limit;
+
+    try {
+        const redisDB = await connectRedis();
+
+        if (id) {
+            const data = await bookingModel.findOne({ _id: id, IsDel: "0" });
+            if (!data) {
+                return res.status(404).json({ err: 'No data found' });
+            }
+
+            return res.status(200).json(data);
+        }
+
+        if (search) {
+            const regex = new RegExp(search, "i");
+            const data = await bookingModel.find({ IsDel: "0", name: regex })
+
+            return res.status(200).json(data);
+        }
+
+
+        const cacheKey = `headBookingGet:page=${page}:limit=${limit}`;
+        // const cachedUsers = await redisDB.get(cacheKey);
+
+        // if (cachedUsers) {
+        //     return res.status(200).json(JSON.parse(cachedUsers));
+        // }
+
+        const data = await bookingModel.find({ IsDel: trash ? "1" : "0" })
+            .skip(skip).limit(limit).sort({ _id: -1 });
+        const totalCount = await bookingModel.countDocuments({ IsDel: trash ? "1" : "0" });
+
+        const result = { data: data, total: totalCount, page, limit };
+
+        await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
+
+        return res.status(200).json(result);
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+
+}
+
+
 
 module.exports = {
     addBooking,
-    getBooking
+    getBooking,
+    getHeadOfBooking
 }

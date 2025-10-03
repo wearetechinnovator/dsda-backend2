@@ -5,7 +5,7 @@ const bookingDetailsSchema = new mongoose.Schema({
     booking_details_id: String,
     booking_details_booking_id: {
         type: String,
-        // ref: 'booking',
+        ref: 'booking',
         required: true
     },
     booking_details_hotel_id: {
@@ -48,7 +48,7 @@ const bookingDetailsSchema = new mongoose.Schema({
         default: '1'
     },
     booking_details_charge_amount_for_this_guest: String,
-    isDel: {
+    IsDel: {
         type: String,
         enum: ['0', '1', '2'], // 0=Active | 1=Trash | 2=Permanent Delete
         default: '0'

@@ -1,4 +1,4 @@
-const { default: fetch } = require("node-fetch");
+const fetch = require("node-fetch");
 const connectRedis = require("../db/redis");
 const bookingModel = require("../models/booking.model");
 const bookingDetailsModel = require("../models/bookingDetails.model");
@@ -11,35 +11,38 @@ const addBooking = async (req, res) => {
     } = req.body;
 
     if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime].some(field => field === '')) {
-        return toast("All fields are required", "error");
+        return res.status(401).json({err: 'All fields are required'})
     }
 
     for (let i = 0; i < guestList.length; i++) {
         const guest = guestList[i];
         if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.idProof, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
-            return toast("All fields are required", "error");
+            return res.status(401).json({err: 'All fields are required'})
         }
     }
+    
+    // ===================================== [All Validation Close here] ==================================
+
 
     try {
-        let getAmountPerGuest;
+        let getSiteSetting;
         let billAmount;
 
         // Get Settings;
-        getAmountPerGuest = await fetch(process.env.MASTER_API + "/site-setting/get", {
+        getSiteSetting = await fetch(process.env.MASTER_API + "/site-setting/get", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({ token: token })
         })
-        getAmountPerGuest = await getAmountPerGuest.json();
+        getSiteSetting = await getSiteSetting.json();
 
 
         // Get Number of Guest and Total  Amount
         let numOfGuest = guestList.filter(guest =>
-            parseInt(guest.age) > parseInt(getAmountPerGuest.age_for_charges)).length;
-        billAmount = (getAmountPerGuest.charges_per_tourist || 0) * numOfGuest;
+            parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges)).length;
+        billAmount = (getSiteSetting.charges_per_tourist || 0) * numOfGuest;
 
 
         // Add booking
@@ -49,8 +52,7 @@ const addBooking = async (req, res) => {
             booking_head_guest_phone: guestList[0].mobileNumber,
             booking_number_of_guest: NumberOfGuest,
             booking_checkin_date_time: `${checkInDate} ${checkInTime}`,
-            booking_checkout_date_time: "",
-            booking_bill_amount_per_guest: getAmountPerGuest.charges_per_tourist || 0,
+            booking_bill_amount_per_guest: getSiteSetting.charges_per_tourist || 0,
             booking_bill_amount: billAmount,
             booking_verified_by: "1",
             booking_added_by: "1",
@@ -75,12 +77,12 @@ const addBooking = async (req, res) => {
                 booking_details_guest_phone: guest.mobileNumber,
                 booking_details_room_no: guest.roomNumber,
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
-                booking_details_checkout_date_time: "",
-
             });
         }
 
         return res.status(201).json({ msg: "Booking added successfully", booking: newBooking });
+
+
     } catch (error) {
         console.log(error);
         return res.status(500).json({ err: "Something went wrong" });

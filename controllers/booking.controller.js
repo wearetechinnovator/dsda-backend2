@@ -19,7 +19,7 @@ const addBooking = async (req, res) => {
     for (let i = 0; i < guestList.length; i++) {
         const guest = guestList[i];
         if (i === 0) {
-            if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.idProof, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
+            if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
                 return res.status(401).json({ err: 'All fields are required sec' })
             }
         } else {
@@ -109,19 +109,22 @@ const addBooking = async (req, res) => {
 // All Booking info
 const getBooking = async (req, res) => {
     const id = req.body?.id;
+    const isHead = req.body?.head;
+    const mobileNumber = req.body?.mobile;
+    const roomNumber = req.body?.room;
     const limit = req.body?.limit ?? 10;
     const page = req.body?.page ?? 1;
     const search = req.body?.search?.trim();
     const trash = req.body?.trash;
     const skip = (page - 1) * limit;
-    const bookingId = req.body?.bookingId; //Get booking Details using booking id
+    const bookingId = req.body?.bookingId; //Get booking_details using booking id
 
 
     try {
         const redisDB = await connectRedis();
 
         if (bookingId) {
-            const data = await bookingDetailsModel.find({ booking_details_booking_id: bookingId, IsDel: "0" });
+            const data = await bookingDetailsModel.find({ booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0" });
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -153,9 +156,20 @@ const getBooking = async (req, res) => {
         //     return res.status(200).json(JSON.parse(cachedUsers));
         // }
 
-        const data = await bookingDetailsModel.find({ IsDel: trash ? "1" : "0" })
+        const query = { IsDel: trash ? "1" : "0" };
+        if (isHead) {
+            query.booking_details_is_head_guest = "1";
+        }
+        if(mobileNumber){
+            query.booking_details_guest_phone = mobileNumber;
+        }
+        if(roomNumber){
+            query.booking_details_room_no = roomNumber;
+        }
+        
+        const data = await bookingDetailsModel.find(query)
             .skip(skip).limit(limit).sort({ _id: -1 });
-        const totalCount = await bookingDetailsModel.countDocuments({ IsDel: trash ? "1" : "0" });
+        const totalCount = await bookingDetailsModel.countDocuments(query);
 
         const result = { data: data, total: totalCount, page, limit };
 
@@ -223,13 +237,77 @@ const getHeadOfBooking = async (req, res) => {
 
 }
 
-const checkOut = async (req, res) => {
 
-}
+// CheckOut;
+const checkOut = async (req, res) => {
+    const { ids, bookingId, date, time, numberOfGuest } = req.body;
+
+    if (!ids || ids.length < 1 || !bookingId || !numberOfGuest) {
+        return res.status(400).json({ err: "Please fill all required fields." });
+    }
+
+    try {
+        // Update booking details status
+        const checkout = await bookingDetailsModel.updateMany(
+            { _id: { $in: ids } },
+            {
+                $set: {
+                    booking_details_status: "1",
+                    booking_details_checkout_date_time: `${date} ${time}`
+                }
+            }
+        );
+
+        // If any documents were updated
+        if (checkout.modifiedCount > 0) {
+            const getBookingData = await bookingModel.findOne({ _id: bookingId });
+            const checkedOutDetails = await bookingDetailsModel.find({
+                booking_details_booking_id: bookingId,
+                booking_details_status: "1"
+            });
+
+            if (parseInt(checkedOutDetails.length) === parseInt(getBookingData.booking_number_of_guest)) {
+                await bookingModel.updateOne(
+                    { _id: bookingId },
+                    {
+                        $set: {
+                            booking_status: "1",
+                            booking_checkout_date_time: `${date} ${time}`
+                        }
+                    }
+                );
+            } else {
+                await bookingModel.updateOne(
+                    { _id: bookingId },
+                    {
+                        $set: {
+                            booking_status: "2"
+                        }
+                    }
+                );
+            }
+
+            return res.status(200).json({
+                message: "Checkout updated successfully",
+                updatedCount: checkout.modifiedCount
+            });
+        }
+
+
+        return res.status(500).json({err: "User not checkout"});
+
+
+    } catch (error) {
+        console.error("Checkout error:", error);
+        return res.status(500).json({ err: "Something went wrong." });
+    }
+};
+
 
 
 module.exports = {
     addBooking,
     getBooking,
-    getHeadOfBooking
+    getHeadOfBooking,
+    checkOut
 }

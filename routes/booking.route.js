@@ -1,7 +1,8 @@
 const router = require("express").Router();
 const {
     addBooking,
-    getBooking
+    getBooking,
+    getStat
 } = require('../controllers/booking.controller')
 
 
@@ -13,6 +14,10 @@ router
 router
     .route('/get-booking')
     .post(getBooking);
+
+router
+    .route('/get-stats')
+    .post(getStat);
 
 
 

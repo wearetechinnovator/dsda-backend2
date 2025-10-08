@@ -117,8 +117,8 @@ const getBooking = async (req, res) => {
     const search = req.body?.search?.trim();
     const trash = req.body?.trash;
     const skip = (page - 1) * limit;
-    const bookingId = req.body?.bookingId; //Get booking_details using booking id
-
+    const bookingId = req.body?.bookingId; // Get booking_details using booking id
+    const isCheckIn = req.body?.checkin;
 
     try {
         const redisDB = await connectRedis();
@@ -132,7 +132,7 @@ const getBooking = async (req, res) => {
             return res.status(200).json(data);
         }
 
-        if (id) {
+        if (id && !isCheckIn) {
             const data = await bookingDetailsModel.findOne({ _id: id, IsDel: "0" });
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
@@ -160,13 +160,18 @@ const getBooking = async (req, res) => {
         if (isHead) {
             query.booking_details_is_head_guest = "1";
         }
-        if(mobileNumber){
+        if (mobileNumber) {
             query.booking_details_guest_phone = mobileNumber;
         }
-        if(roomNumber){
+        if (roomNumber) {
             query.booking_details_room_no = roomNumber;
         }
+        if(isCheckIn){
+            query.booking_details_hotel_id = id; 
+            query.booking_details_status = "0";
+        }
         
+
         const data = await bookingDetailsModel.find(query)
             .skip(skip).limit(limit).sort({ _id: -1 });
         const totalCount = await bookingDetailsModel.countDocuments(query);
@@ -207,7 +212,7 @@ const getHeadOfBooking = async (req, res) => {
 
         if (search) {
             const regex = new RegExp(search, "i");
-            const data = await bookingModel.find({ IsDel: "0", name: regex })
+            const data = await bookingModel.find({ IsDel: "0", booking_head_guest_name: regex })
 
             return res.status(200).json(data);
         }
@@ -294,7 +299,7 @@ const checkOut = async (req, res) => {
         }
 
 
-        return res.status(500).json({err: "User not checkout"});
+        return res.status(500).json({ err: "User not checkout" });
 
 
     } catch (error) {
@@ -305,9 +310,126 @@ const checkOut = async (req, res) => {
 
 
 
+// :::::::::::::::::::::::::: [GET ALL STATICTICS DATA] ::::::::::::::::::::::::
+const getStat = async (req, res) => {
+    const { hotelId } = req.body;
+
+    if (!hotelId) {
+        return res.status(400).json({ err: "Please fill all required fields." });
+    }
+
+    try {
+        // Total Occupied bed
+        const occu = await bookingDetailsModel.find({
+            booking_details_hotel_id: hotelId,
+            booking_details_status: "0"
+        });
+
+
+        // Total Footfall
+        const getTotalFootFall = await bookingModel.aggregate([
+            {
+                $match: {
+                    booking_hotel_id: hotelId,
+                    IsDel: "0", // optional: only active bookings
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalFootFall: { $sum: { $toDouble: "$booking_number_of_guest" } }
+                },
+            },
+        ]);
+
+
+        // Today Footfall
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const getTodayFootFall = await bookingModel.aggregate([
+            {
+                $match: {
+                    booking_hotel_id: hotelId,
+                    booking_checkin_date_time: {
+                        $gte: startOfDay.toISOString(),
+                        $lte: endOfDay.toISOString(),
+                    },
+                    IsDel: "0", // optional: only active bookings
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalFootFall: { $sum: { $toDouble: "$booking_number_of_guest" } }
+                },
+            },
+        ]);
+
+
+        // Today aminity charge;
+        const todayTotal = await bookingModel.aggregate([
+            {
+                $match: {
+                    booking_hotel_id: hotelId,
+                    booking_checkin_date_time: {
+                        $gte: startOfDay.toISOString(),
+                        $lte: endOfDay.toISOString(),
+                    },
+                    IsDel: "0", // optional: only active bookings
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
+                },
+            },
+        ]);
+
+
+        // Total Footfal
+        const totalAmenity = await bookingModel.aggregate([
+            {
+                $match: {
+                    booking_hotel_id: hotelId,
+                    IsDel: "0", // optional: only active bookings
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
+                },
+            },
+        ]);
+
+
+
+        return res.status(200).json({
+            occupied: occu.length || 0,
+            totalFootFall: getTotalFootFall[0]?.totalFootFall || 0,
+            todayFootFall: getTodayFootFall[0]?.totalFootFall || 0,
+            todayAminity: todayTotal[0]?.totalAmount || 0,
+            totalAminity: totalAmenity[0]?.totalAmount || 0
+        })
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+}
+
+
+
+
 module.exports = {
     addBooking,
     getBooking,
     getHeadOfBooking,
-    checkOut
+    checkOut,
+    getStat
 }

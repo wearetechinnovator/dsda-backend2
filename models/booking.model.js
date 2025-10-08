@@ -5,7 +5,8 @@ const bookingSchema = new mongoose.Schema({
     booking_id: String,
     booking_hotel_id: {
         type: String,
-        required: true
+        required: true,
+        index:true
     },
     booking_head_guest_name: String,
     booking_head_guest_phone: String,
@@ -32,7 +33,8 @@ const bookingSchema = new mongoose.Schema({
     IsDel: {
         type: String,
         enum: ['0', '1', '2'], // 0=Active | 1=Trash | 2=Permanent Delete
-        default: '0'
+        default: '0',
+        index: true
     }
 }, { timestamps: true })
 

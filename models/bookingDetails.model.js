@@ -6,11 +6,12 @@ const bookingDetailsSchema = new mongoose.Schema({
     booking_details_booking_id: {
         type: String,
         ref: 'booking',
-        required: true
+        required: true,
+        index: true
     },
     booking_details_hotel_id: {
         type: mongoose.Schema.Types.ObjectId,
-        required: true
+        required: true,
     },
     booking_details_is_head_guest: {
         type: String,

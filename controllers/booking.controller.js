@@ -106,12 +106,15 @@ const addBooking = async (req, res) => {
 
 }
 
+
 // All Booking info
 const getBooking = async (req, res) => {
     const id = req.body?.id;
     const isHead = req.body?.head;
     const mobileNumber = req.body?.mobile;
     const roomNumber = req.body?.room;
+    const fromDate = req.body?.fromDate;
+    const toDate = req.body?.toDate;
     const limit = req.body?.limit ?? 10;
     const page = req.body?.page ?? 1;
     const search = req.body?.search?.trim();
@@ -119,6 +122,8 @@ const getBooking = async (req, res) => {
     const skip = (page - 1) * limit;
     const bookingId = req.body?.bookingId; // Get booking_details using booking id
     const isCheckIn = req.body?.checkin;
+    const idCardNumber = req.body?.idCardNumber;
+    const guestName = req.body?.guestName;
 
     try {
         const redisDB = await connectRedis();
@@ -157,6 +162,7 @@ const getBooking = async (req, res) => {
         // }
 
         const query = { IsDel: trash ? "1" : "0" };
+
         if (isHead) {
             query.booking_details_is_head_guest = "1";
         }
@@ -166,14 +172,32 @@ const getBooking = async (req, res) => {
         if (roomNumber) {
             query.booking_details_room_no = roomNumber;
         }
-        if(isCheckIn){
-            query.booking_details_hotel_id = id; 
+        if (isCheckIn) {
+            query.booking_details_hotel_id = id;
             query.booking_details_status = "0";
         }
-        
+        if (fromDate && toDate) {
+            const dateFilter = {};
+
+            if (fromDate) {
+                dateFilter.$gte = fromDate + ' 00:00:00';
+            }
+            if (toDate) {
+                dateFilter.$lte = toDate + ' 23:59:59';
+            }
+
+            query.booking_details_checkin_date_time = dateFilter;
+        }
+        if (idCardNumber) {
+            query.booking_details_guest_id_number = idCardNumber
+        }
+        if (guestName) {
+            query.booking_details_guest_name = { $regex: guestName, $options: "i" };
+        }
+
 
         const data = await bookingDetailsModel.find(query)
-            .skip(skip).limit(limit).sort({ _id: -1 });
+            .skip(skip).limit(limit).sort({ _id: -1 }).populate('booking_details_booking_id');
         const totalCount = await bookingDetailsModel.countDocuments(query);
 
         const result = { data: data, total: totalCount, page, limit };
@@ -197,39 +221,102 @@ const getHeadOfBooking = async (req, res) => {
     const search = req.body?.search?.trim();
     const trash = req.body?.trash;
     const skip = (page - 1) * limit;
+    const month = req.body?.month;
+    const year = req.body?.year;
+    const hotelId = req.body?.hotel_id;
+
+
 
     try {
         const redisDB = await connectRedis();
 
         if (id) {
             const data = await bookingModel.findOne({ _id: id, IsDel: "0" });
-            if (!data) {
-                return res.status(404).json({ err: 'No data found' });
-            }
-
+            if (!data) return res.status(404).json({ err: 'No data found' });
             return res.status(200).json(data);
         }
+
 
         if (search) {
             const regex = new RegExp(search, "i");
-            const data = await bookingModel.find({ IsDel: "0", booking_head_guest_name: regex })
-
+            const data = await bookingModel.find({
+                IsDel: "0",
+                booking_head_guest_name: regex
+            });
             return res.status(200).json(data);
         }
 
+        const cacheKey = `headBookingGet:page=${page}:limit=${limit}:month=${month}:year=${year}`;
+        // const cached = await redisDB.get(cacheKey);
+        // if (cached) return res.status(200).json(JSON.parse(cached));
 
-        const cacheKey = `headBookingGet:page=${page}:limit=${limit}`;
-        // const cachedUsers = await redisDB.get(cacheKey);
+        const query = { IsDel: trash ? "1" : "0" };
+        if (hotelId) query.booking_hotel_id = hotelId;
 
-        // if (cachedUsers) {
-        //     return res.status(200).json(JSON.parse(cachedUsers));
-        // }
+        if (month && year) {
+            const monthNum = parseInt(month);
+            const yearNum = parseInt(year, 10);
 
-        const data = await bookingModel.find({ IsDel: trash ? "1" : "0" })
-            .skip(skip).limit(limit).sort({ _id: -1 });
-        const totalCount = await bookingModel.countDocuments({ IsDel: trash ? "1" : "0" });
+            if (monthNum && !isNaN(yearNum)) {
+                const monthIndex = monthNum - 1;
+                const firstDay = new Date(yearNum, monthIndex, 1);
+                const lastDay = new Date(yearNum, monthIndex + 1, 0, 23, 59, 59, 999);
 
-        const result = { data: data, total: totalCount, page, limit };
+                const formatDate = (d) => {
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    return `${yyyy}-${mm}-${dd}`;
+                };
+
+                query.booking_checkin_date_time = {
+                    $gte: formatDate(firstDay) + ' 00:00:00',
+                    $lte: formatDate(lastDay) + ' 23:59:59'
+                };
+            }
+        }
+
+        // 🔹 Aggregation for date-wise totals
+        const summaryData = await bookingModel.aggregate([
+            { $match: query },
+            {
+                $addFields: {
+                    bookingDate: {
+                        $dateFromString: {
+                            dateString: "$booking_checkin_date_time",
+                            onError: new Date("1970-01-01"),
+                            onNull: new Date("1970-01-01")
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: "%Y-%m-%d", date: "$bookingDate" } }
+                    },
+                    total_guest: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    total_bill: { $sum: { $toDouble: "$booking_bill_amount" } }
+                }
+            },
+            { $sort: { "_id.date": 1 } },
+            { $skip: skip },
+            { $limit: limit }
+        ]);
+
+        const totalCount = summaryData.length;
+
+        // 🔹 Response (summary in data)
+        const result = {
+            data: summaryData.map(d => ({
+                date: d._id.date,
+                total_guest: d.total_guest,
+                total_bill: d.total_bill
+            })),
+            total: totalCount,
+            page,
+            limit
+        };
 
         await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
 
@@ -239,8 +326,9 @@ const getHeadOfBooking = async (req, res) => {
         console.error(error);
         return res.status(500).json({ err: "Something went wrong" });
     }
+};
 
-}
+
 
 
 // CheckOut;

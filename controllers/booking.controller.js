@@ -124,9 +124,42 @@ const getBooking = async (req, res) => {
     const isCheckIn = req.body?.checkin;
     const idCardNumber = req.body?.idCardNumber;
     const guestName = req.body?.guestName;
+    const isEnrolled = req.body?.enrolled;
+    const hotelId = req.body?.hotelId;
+
 
     try {
         const redisDB = await connectRedis();
+
+
+        // ::::::::::::: [ Provide Hotel is and Get Total Enrolled Data ]:::::::::::::
+        if (hotelId && isEnrolled) {
+            const data = await bookingModel.aggregate([
+                {
+                    $match: {
+                        booking_hotel_id: hotelId,
+                        IsDel: "0"
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalGuests: {
+                            $sum: { $toInt: "$booking_number_of_guest" }
+                        },
+                        totalCharges: {
+                            $sum: { $toInt: "$booking_bill_amount" }
+                        }
+                    }
+                }
+            ]);
+            if (!data) {
+                return res.status(404).json({ err: 'No data found' });
+            }
+
+            return res.status(200).json(data);
+
+        }
 
         if (bookingId) {
             const data = await bookingDetailsModel.find({ booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0" });
@@ -330,7 +363,6 @@ const getHeadOfBooking = async (req, res) => {
 
 
 
-
 // CheckOut;
 const checkOut = async (req, res) => {
     const { ids, bookingId, date, time, numberOfGuest } = req.body;
@@ -397,10 +429,10 @@ const checkOut = async (req, res) => {
 };
 
 
-
 // :::::::::::::::::::::::::: [GET ALL STATICTICS DATA] ::::::::::::::::::::::::
 const getStat = async (req, res) => {
-    const { hotelId } = req.body;
+    const hotelId = req.body?.hotelId;
+    const getOccupied = req.body?.occupied;
 
     if (!hotelId) {
         return res.status(400).json({ err: "Please fill all required fields." });
@@ -412,6 +444,10 @@ const getStat = async (req, res) => {
             booking_details_hotel_id: hotelId,
             booking_details_status: "0"
         });
+        // When get only occupied data: `USED IN MASTER SERVICES`;
+        if(getOccupied){
+            return res.status(200).json({occupied: occu.length || 0});
+        }
 
 
         // Total Footfall
@@ -419,7 +455,7 @@ const getStat = async (req, res) => {
             {
                 $match: {
                     booking_hotel_id: hotelId,
-                    IsDel: "0", // optional: only active bookings
+                    IsDel: "0",
                 },
             },
             {
@@ -478,7 +514,7 @@ const getStat = async (req, res) => {
         ]);
 
 
-        // Total Footfal
+        // Total Footfall
         const totalAmenity = await bookingModel.aggregate([
             {
                 $match: {
@@ -489,7 +525,6 @@ const getStat = async (req, res) => {
             {
                 $group: {
                     _id: null,
-
                     totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
                 },
             },

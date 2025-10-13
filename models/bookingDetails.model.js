@@ -36,7 +36,8 @@ const bookingDetailsSchema = new mongoose.Schema({
     booking_details_status: {
         type: String,
         enum: ['0', '1'], // 0=checkin | 1=checkout 
-        default: '0'
+        default: '0',
+        index: true
     },
     booking_details_extra_occupancy: {
         type: String,

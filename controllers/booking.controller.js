@@ -429,7 +429,7 @@ const checkOut = async (req, res) => {
 };
 
 
-// :::::::::::::::::::::::::: [GET ALL STATICTICS DATA] ::::::::::::::::::::::::
+// :::::::::::::::::::::::::: [GET ALL STATICTICS DATA SPESIFIC HOTEL] ::::::::::::::::::::::::
 const getStat = async (req, res) => {
     const hotelId = req.body?.hotelId;
     const getOccupied = req.body?.occupied;
@@ -439,16 +439,20 @@ const getStat = async (req, res) => {
     }
 
     try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
         // Total Occupied bed
         const occu = await bookingDetailsModel.find({
             booking_details_hotel_id: hotelId,
             booking_details_status: "0"
         });
         // When get only occupied data: `USED IN MASTER SERVICES`;
-        if(getOccupied){
-            return res.status(200).json({occupied: occu.length || 0});
+        if (getOccupied) {
+            return res.status(200).json({ occupied: occu.length || 0 });
         }
-
 
         // Total Footfall
         const getTotalFootFall = await bookingModel.aggregate([
@@ -466,13 +470,7 @@ const getStat = async (req, res) => {
             },
         ]);
 
-
         // Today Footfall
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
-
         const getTodayFootFall = await bookingModel.aggregate([
             {
                 $match: {
@@ -491,7 +489,6 @@ const getStat = async (req, res) => {
                 },
             },
         ]);
-
 
         // Today aminity charge;
         const todayTotal = await bookingModel.aggregate([
@@ -513,7 +510,6 @@ const getStat = async (req, res) => {
             },
         ]);
 
-
         // Total Footfall
         const totalAmenity = await bookingModel.aggregate([
             {
@@ -531,7 +527,6 @@ const getStat = async (req, res) => {
         ]);
 
 
-
         return res.status(200).json({
             occupied: occu.length || 0,
             totalFootFall: getTotalFootFall[0]?.totalFootFall || 0,
@@ -547,6 +542,189 @@ const getStat = async (req, res) => {
 }
 
 
+// FOR ALL HOTEL
+const getTotalStatsforAdmin = async (req, res) => {
+    try {
+        // Get Setting from Admin //Service 1
+        const getAdminSetting = await fetch(process.env.MASTER_API + "/site-setting/get", { method: 'post' })
+        const { age_for_charges } = await getAdminSetting.json();
+
+        // Get today's start and end timestamps
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
+
+        const [
+            todayActiveHotel, totalOccupied, todayFootFall,
+            totalFootFall, totalForeigner, totalIndian, totalMale, totalFemale,
+            totalOtherGender, todayAminityCharge, totalAminityCharge, todayChild,
+            totalChild, totalAdult, todayAdult
+        ] = await Promise.all([
+            // Total Active Hotels;
+            await bookingModel.countDocuments({
+                IsDel: '0',
+                booking_status: '0',
+                booking_checkin_date_time: {
+                    $gte: startOfDay.toISOString(),
+                    $lte: endOfDay.toISOString()
+                }
+            }),
+
+            // Total Occupied Beds;
+            await bookingDetailsModel.countDocuments({
+                booking_details_status: "0"
+            }),
+
+            // Today Footfalls;
+            await bookingModel.aggregate([
+                {
+                    $match: {
+                        IsDel: "0",
+                        booking_checkin_date_time: {
+                            $gte: startOfDay.toISOString(),
+                            $lte: endOfDay.toISOString(),
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalFootFall: { $sum: { $toDouble: "$booking_number_of_guest" } }
+                    },
+                },
+            ]),
+
+            // All Footfalls;
+            await bookingModel.aggregate([
+                {
+                    $match: {
+                        IsDel: "0",
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalFootFall: { $sum: { $toDouble: "$booking_number_of_guest" } }
+                    },
+                },
+            ]),
+
+            // Till Today Foreigner
+            await bookingDetailsModel.countDocuments({
+                booking_details_guest_nationality: { $ne: "Indian" }, IsDel: "0"
+            }),
+
+            // Till Today Indian;
+            await bookingDetailsModel.countDocuments({
+                booking_details_guest_nationality: "Indian", IsDel: "0"
+            }),
+
+
+            // Till Today Male
+            await bookingDetailsModel.countDocuments({
+                booking_details_guest_gender: "Male", IsDel: "0"
+            }),
+
+            // Till Today Female
+            await bookingDetailsModel.countDocuments({
+                booking_details_guest_gender: "Female", IsDel: "0"
+            }),
+
+            // Till Today Other Gender
+            await bookingDetailsModel.countDocuments({
+                booking_details_guest_gender: { $nin: ["Male", "Female"] },
+                IsDel: "0",
+            }),
+
+            // Today Aminity Charge
+            await bookingModel.aggregate([
+                {
+                    $match: {
+                        booking_checkin_date_time: {
+                            $gte: startOfDay.toISOString(),
+                            $lte: endOfDay.toISOString(),
+                        },
+                        IsDel: "0",
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
+                    },
+                },
+            ]),
+
+            // Total Aminity Charge;
+            await bookingModel.aggregate([
+                {
+                    $match: {
+                        IsDel: "0",
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
+                    },
+                },
+            ]),
+
+            // Today Child
+            await bookingDetailsModel.countDocuments({
+                IsDel: "0",
+                createdAt: { $gte: startOfDay, $lte: endOfDay },
+                $expr: { $lt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+            }),
+
+            // Total Child
+            await bookingDetailsModel.countDocuments({
+                IsDel: "0",
+                $expr: { $lt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+            }),
+
+            // Total Adult
+            await bookingDetailsModel.countDocuments({
+                IsDel: "0",
+                $expr: { $gte: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+            }),
+
+            // Today Adult
+            await bookingDetailsModel.countDocuments({
+                IsDel: "0",
+                createdAt: { $gte: startOfDay, $lte: endOfDay },
+                $expr: { $gte: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+            })
+        ])
+
+
+        return res.status(200).json({
+            active_hotel: todayActiveHotel,
+            total_occupied: totalOccupied,
+            today_footfall: todayFootFall[0]?.totalFootFall || 0,
+            total_footfall: totalFootFall[0]?.totalFootFall || 0,
+            total_foreigner: totalForeigner,
+            total_indian: totalIndian,
+            total_male: totalMale,
+            total_female: totalFemale,
+            total_other_gender: totalOtherGender,
+            today_aminity_charge: todayAminityCharge[0]?.totalAmount || 0,
+            total_aminity_charge: totalAminityCharge[0]?.totalAmount || 0,
+            today_child: todayChild,
+            total_child: totalChild,
+            total_adult: totalAdult,
+            today_adult: todayAdult
+        })
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+}
+
 
 
 module.exports = {
@@ -554,5 +732,6 @@ module.exports = {
     getBooking,
     getHeadOfBooking,
     checkOut,
-    getStat
+    getStat,
+    getTotalStatsforAdmin
 }

@@ -726,6 +726,77 @@ const getTotalStatsforAdmin = async (req, res) => {
 }
 
 
+// Admin Tourist Data
+const touristFootfallData = async (req, res) => {
+    const limit = Number(req.body?.limit) || 10;
+    const page = Number(req.body?.page) || 1;
+    const search = req.body?.search?.trim() || "";
+    const startDate = req.body?.startDate;
+    const endDate = req.body?.endDate;
+    const skip = (page - 1) * limit;
+
+    try {
+        const redisDB = await connectRedis();
+
+        const matchStage = { IsDel: "0" };
+
+
+        if (search) {
+            matchStage.booking_checkin_date_time = { $regex: search, $options: "i" };
+        }
+
+        if (startDate && endDate) {
+            matchStage.booking_checkin_date_time = {
+                $gte: startDate,
+                $lte: endDate,
+            };
+        } else if (startDate) {
+            matchStage.booking_checkin_date_time = { $gte: startDate };
+        } else if (endDate) {
+            matchStage.booking_checkin_date_time = { $lte: endDate };
+        }
+
+        const pipeline = [
+            { $match: matchStage },
+            {
+                $group: {
+                    _id: "$booking_checkin_date_time",
+                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } }
+                },
+            },
+            { $sort: { _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+        ];
+
+        const result = await bookingModel.aggregate(pipeline);
+
+
+        const totalCount = await bookingModel.aggregate([
+            { $match: matchStage },
+            { $group: { _id: "$booking_checkin_date_time" } },
+            { $count: "total" },
+        ]);
+
+        const total = totalCount[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
+
+        return res.status(200).json({
+            data: result,
+            total,
+            page,
+            limit,
+            totalPages,
+        });
+    } catch (error) {
+        console.error("touristData error:", error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+
+
 
 module.exports = {
     addBooking,
@@ -733,5 +804,6 @@ module.exports = {
     getHeadOfBooking,
     checkOut,
     getStat,
-    getTotalStatsforAdmin
+    getTotalStatsforAdmin,
+    touristFootfallData
 }

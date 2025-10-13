@@ -3,7 +3,8 @@ const {
     addBooking,
     getBooking,
     getStat,
-    getTotalStatsforAdmin
+    getTotalStatsforAdmin,
+    touristFootfallData
 } = require('../controllers/booking.controller')
 
 
@@ -23,6 +24,10 @@ router
 router
     .route("/get-admin-stats")
     .post(getTotalStatsforAdmin);
+
+router
+    .route("/tourist-data/footfall")
+    .post(touristFootfallData);
 
 
 

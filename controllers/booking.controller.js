@@ -726,8 +726,9 @@ const getTotalStatsforAdmin = async (req, res) => {
 }
 
 
-// Admin Tourist Data
-const touristFootfallData = async (req, res) => {
+// Admin Tourist Data Date and Hotel wise
+const touristFootfallDate = async (req, res) => {
+    const hotelId = req.body?.id;
     const limit = Number(req.body?.limit) || 10;
     const page = Number(req.body?.page) || 1;
     const search = req.body?.search?.trim() || "";
@@ -735,61 +736,158 @@ const touristFootfallData = async (req, res) => {
     const endDate = req.body?.endDate;
     const skip = (page - 1) * limit;
 
+    if (!hotelId || !startDate || !endDate) {
+        return res.status(500).json({ err: "fill the required" })
+    }
+
     try {
         const redisDB = await connectRedis();
 
-        const matchStage = { IsDel: "0" };
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        const enrolledData = await bookingModel.find({
+            booking_hotel_id: hotelId,
+            IsDel: '0',
+            booking_checkin_date_time: {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
+        })
+            .skip(skip)
+            .limit(limit)
+            .sort({ _id: -1 });
+
+        const totalCount = await bookingModel.countDocuments({
+            booking_hotel_id: hotelId,
+            IsDel: '0',
+            booking_checkin_date_time: {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
+        });
+
+        const result = { data: enrolledData, total: totalCount, page, limit };
+
+        return res.status(200).json(result);
+
+    } catch (error) {
+        console.error("touristFootfallData error:", error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
 
 
-        if (search) {
-            matchStage.booking_checkin_date_time = { $regex: search, $options: "i" };
+// Daywise Tourist Footfall
+const touristFootfalDayWise = async (req, res) => {
+    const limit = Number(req.body?.limit) || 10;
+    const page = Number(req.body?.page) || 1;
+    const search = req.body?.search?.trim() || "";
+    const skip = (page - 1) * limit;
+    const { hotelId, startDate, endDate, zone, sector, block, district, policeStation } = req.body;
+
+    try {
+        const redisDB = await connectRedis();
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        // Get Setting;
+        const getAdminSetting = await fetch(`${process.env.MASTER_API}/site-setting/get`, { method: 'post' });
+        const { age_for_charges } = await getAdminSetting.json();
+        const adultAge = parseFloat(age_for_charges);
+
+        let matches = { IsDel: "0" };
+        if (hotelId) {
+            matches.booking_details_hotel_id = hotelId;
         }
-
         if (startDate && endDate) {
-            matchStage.booking_checkin_date_time = {
-                $gte: startDate,
-                $lte: endDate,
-            };
-        } else if (startDate) {
-            matchStage.booking_checkin_date_time = { $gte: startDate };
-        } else if (endDate) {
-            matchStage.booking_checkin_date_time = { $lte: endDate };
+            matches.booking_details_checkin_date_time = {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
         }
+        if (zone || sector || district || policeStation) {
+            let ids = [];
+            const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    zone, sector, block, policeStation, district,
+                    limit: 5000000
+                })
+            });
+            const hotelList = await hotelListReq.json();
+            hotelList.data?.forEach(h => {
+                ids.push(h._id);
+            });
 
-        const pipeline = [
-            { $match: matchStage },
+            matches.booking_details_hotel_id = {
+                $in: ids
+            }
+
+        }
+        console.log(matches);
+
+        const guestStats = await bookingDetailsModel.aggregate([
+            { $match: matches },
             {
                 $group: {
-                    _id: "$booking_checkin_date_time",
-                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } }
-                },
+                    _id: "$booking_details_hotel_id", // Group by hotel ID
+                    totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Male"] }, 1, 0] } },
+                    totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Female"] }, 1, 0] } },
+                    totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "Male"] }, { $ne: ["$booking_details_guest_gender", "Female"] }] }, 1, 0] } },
+                    totalAdult: { $sum: { $cond: [{ $gte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
+                    totalChild: { $sum: { $cond: [{ $lt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
+                    totalForeigner: { $sum: { $cond: [{ $ne: ["$booking_details_guest_nationality", "Indian"] }, 1, 0] } },
+                    totalIndian: { $sum: { $cond: [{ $eq: ["$booking_details_guest_nationality", "Indian"] }, 1, 0] } }
+                }
             },
-            { $sort: { _id: -1 } },
             { $skip: skip },
             { $limit: limit },
-        ];
-
-        const result = await bookingModel.aggregate(pipeline);
-
-
-        const totalCount = await bookingModel.aggregate([
-            { $match: matchStage },
-            { $group: { _id: "$booking_checkin_date_time" } },
-            { $count: "total" },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    hotelId: "$_id",
+                    _id: 0,
+                    totalMale: 1,
+                    totalFemale: 1,
+                    totalOtherGender: 1,
+                    totalAdult: 1,
+                    totalChild: 1,
+                    totalForeigner: 1,
+                    totalIndian: 1
+                }
+            }
         ]);
 
-        const total = totalCount[0]?.total || 0;
-        const totalPages = Math.ceil(total / limit);
+        await Promise.all(
+            guestStats.map(async (s) => {
+                const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: s.hotelId })
+                });
+                const hotelList = await hotelListReq.json();
+                if (hotelListReq.status === 200) {
+                    s.hotel_details = hotelList; // assign to the object, not array
+                } else {
+                    s.hotel_details = null; // fallback if API fails
+                }
+            })
+        );
 
-        return res.status(200).json({
-            data: result,
-            total,
-            page,
-            limit,
-            totalPages,
-        });
+        const totalCountAgg = await bookingDetailsModel.aggregate([
+            { $match: { IsDel: "0" } },
+            { $group: { _id: "$booking_details_hotel_id" } },
+            { $count: "total" }
+        ]);
+        const totalCount = totalCountAgg[0]?.total || 0;
+
+        const result = { data: guestStats, total: totalCount, page, limit };
+        res.status(200).json(result);
+
     } catch (error) {
-        console.error("touristData error:", error);
+        console.error("touristFootfallData error:", error);
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -805,5 +903,6 @@ module.exports = {
     checkOut,
     getStat,
     getTotalStatsforAdmin,
-    touristFootfallData
+    touristFootfallDate,
+    touristFootfalDayWise
 }

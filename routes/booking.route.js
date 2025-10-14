@@ -4,7 +4,8 @@ const {
     getBooking,
     getStat,
     getTotalStatsforAdmin,
-    touristFootfallData
+    touristFootfallDate,
+    touristFootfalDayWise
 } = require('../controllers/booking.controller')
 
 
@@ -25,10 +26,15 @@ router
     .route("/get-admin-stats")
     .post(getTotalStatsforAdmin);
 
+
 router
     .route("/tourist-data/footfall")
-    .post(touristFootfallData);
+    .post(touristFootfallDate);
 
 
+router
+    .route("/tourist-data/footfall-daywise")
+    .post(touristFootfalDayWise);
+    
 
 module.exports = router;

@@ -1,10 +1,8 @@
 const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema({
-    // _id: String,
-    booking_id: String,
     booking_hotel_id: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
         required: true,
         index:true
     },

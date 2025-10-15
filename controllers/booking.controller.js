@@ -132,7 +132,7 @@ const getBooking = async (req, res) => {
         const redisDB = await connectRedis();
 
 
-        // ::::::::::::: [ Provide Hotel is and Get Total Enrolled Data ]:::::::::::::
+        // ::::::::::::: [ Provide Hotel and Get Total Enrolled Data ]:::::::::::::
         if (hotelId && isEnrolled) {
             const data = await bookingModel.aggregate([
                 {
@@ -226,6 +226,9 @@ const getBooking = async (req, res) => {
         }
         if (guestName) {
             query.booking_details_guest_name = { $regex: guestName, $options: "i" };
+        }
+        if(hotelId){
+            query.booking_details_hotel_id = hotelId;
         }
 
 

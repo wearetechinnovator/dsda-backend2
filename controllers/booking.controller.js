@@ -4,6 +4,7 @@ const bookingModel = require("../models/booking.model");
 const bookingDetailsModel = require("../models/bookingDetails.model");
 const fileUpload = require("../helper/fileUpload");
 const tripleSHA1 = require("../helper/sha1_hash");
+const { default: mongoose } = require("mongoose");
 
 
 const addBooking = async (req, res) => {
@@ -93,6 +94,7 @@ const addBooking = async (req, res) => {
                 booking_details_guest_phone: guest.mobileNumber,
                 booking_details_room_no: guest.roomNumber,
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
+                booking_details_charge_amount_for_this_guest: getSiteSetting.charges_per_tourist || 0
             });
         }
 
@@ -137,7 +139,7 @@ const getBooking = async (req, res) => {
             const data = await bookingModel.aggregate([
                 {
                     $match: {
-                        booking_hotel_id: hotelId,
+                        booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
                         IsDel: "0"
                     }
                 },
@@ -153,6 +155,8 @@ const getBooking = async (req, res) => {
                     }
                 }
             ]);
+            console.log('++++++++++++++ EndData +++++++++++++');
+            console.log(data)
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -227,7 +231,7 @@ const getBooking = async (req, res) => {
         if (guestName) {
             query.booking_details_guest_name = { $regex: guestName, $options: "i" };
         }
-        if(hotelId){
+        if (hotelId) {
             query.booking_details_hotel_id = hotelId;
         }
 
@@ -617,28 +621,32 @@ const getTotalStatsforAdmin = async (req, res) => {
 
             // Till Today Foreigner
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_nationality: { $ne: "Indian" }, IsDel: "0"
+                booking_details_guest_nationality: "foreign", IsDel: "0"
             }),
 
             // Till Today Indian;
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_nationality: "Indian", IsDel: "0"
+                IsDel: "0",
+                $or: [
+                    { booking_details_guest_nationality: "india" },
+                    { booking_details_guest_nationality: "" }
+                ]
             }),
 
 
             // Till Today Male
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: "Male", IsDel: "0"
+                booking_details_guest_gender: "male", IsDel: "0"
             }),
 
             // Till Today Female
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: "Female", IsDel: "0"
+                booking_details_guest_gender: "female", IsDel: "0"
             }),
 
             // Till Today Other Gender
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: { $nin: ["Male", "Female"] },
+                booking_details_guest_gender: { $nin: ["male", "female"] },
                 IsDel: "0",
             }),
 
@@ -814,7 +822,7 @@ const touristFootfalDayWise = async (req, res) => {
             const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     zone, sector, block, policeStation, district,
                     limit: 5000000
                 })
@@ -829,20 +837,22 @@ const touristFootfalDayWise = async (req, res) => {
             }
 
         }
-        console.log(matches);
 
         const guestStats = await bookingDetailsModel.aggregate([
             { $match: matches },
             {
                 $group: {
                     _id: "$booking_details_hotel_id", // Group by hotel ID
-                    totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Male"] }, 1, 0] } },
-                    totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Female"] }, 1, 0] } },
-                    totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "Male"] }, { $ne: ["$booking_details_guest_gender", "Female"] }] }, 1, 0] } },
+                    totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "male"] }, 1, 0] } },
+                    totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "female"] }, 1, 0] } },
+                    totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "male"] }, { $ne: ["$booking_details_guest_gender", "female"] }] }, 1, 0] } },
                     totalAdult: { $sum: { $cond: [{ $gte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
                     totalChild: { $sum: { $cond: [{ $lt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
-                    totalForeigner: { $sum: { $cond: [{ $ne: ["$booking_details_guest_nationality", "Indian"] }, 1, 0] } },
-                    totalIndian: { $sum: { $cond: [{ $eq: ["$booking_details_guest_nationality", "Indian"] }, 1, 0] } }
+                    totalForeigner: { $sum: { $cond: [{ $eq: ["$booking_details_guest_nationality", "foreign"] }, 1, 0] } },
+                    totalIndian: { $sum: { $cond: [{ $in: ["$booking_details_guest_nationality", ["india", ""]] }, 1, 0] } },
+                    totalFootFall: { $sum: { $cond: [{ $eq: ["$IsDel", "0"] }, 1, 0] } },
+                    totalAmenitiesCharges: { $sum: { $cond: [{ $eq: ["$IsDel", "0"] }, { $toDouble: "$booking_details_charge_amount_for_this_guest" }, 0] } }
+
                 }
             },
             { $skip: skip },
@@ -858,7 +868,9 @@ const touristFootfalDayWise = async (req, res) => {
                     totalAdult: 1,
                     totalChild: 1,
                     totalForeigner: 1,
-                    totalIndian: 1
+                    totalIndian: 1,
+                    totalFootFall: 1,
+                    totalAmenitiesCharges: 1
                 }
             }
         ]);

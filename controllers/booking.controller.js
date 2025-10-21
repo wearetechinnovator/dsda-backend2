@@ -10,10 +10,10 @@ const { default: mongoose } = require("mongoose");
 const addBooking = async (req, res) => {
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
-        guestList, hotelId, token
+        guestList, hotelId, token, checkoutDate, checkoutTime
     } = req.body;
 
-    if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime].some(field => field === '')) {
+    if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime, checkoutDate, checkoutTime].some(field => field === '')) {
         return res.status(401).json({ err: 'All fields are required first' })
     }
 
@@ -30,7 +30,7 @@ const addBooking = async (req, res) => {
         }
 
     }
-    // ============================= [All Validation Close here] ==========================
+    // =====================================[ All Validation Close here ]===================================
 
     try {
         let getSiteSetting;
@@ -60,6 +60,7 @@ const addBooking = async (req, res) => {
             booking_head_guest_phone: guestList[0].mobileNumber,
             booking_number_of_guest: NumberOfGuest,
             booking_checkin_date_time: `${checkInDate} ${checkInTime}`,
+            booking_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
             booking_bill_amount_per_guest: getSiteSetting.charges_per_tourist || 0,
             booking_bill_amount: billAmount,
             booking_verified_by: verificationBy === "manager" ? "0" : "1",
@@ -94,6 +95,7 @@ const addBooking = async (req, res) => {
                 booking_details_guest_phone: guest.mobileNumber,
                 booking_details_room_no: guest.roomNumber,
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
+                booking_details_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
                 booking_details_charge_amount_for_this_guest: getSiteSetting.charges_per_tourist || 0
             });
         }
@@ -155,8 +157,7 @@ const getBooking = async (req, res) => {
                     }
                 }
             ]);
-            console.log('++++++++++++++ EndData +++++++++++++');
-            console.log(data)
+
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -202,6 +203,9 @@ const getBooking = async (req, res) => {
 
         if (isHead) {
             query.booking_details_is_head_guest = "1";
+            query.booking_details_status = {
+                $eq: "0"
+            }
         }
         if (mobileNumber) {
             query.booking_details_guest_phone = mobileNumber;

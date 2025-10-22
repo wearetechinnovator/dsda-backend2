@@ -4,7 +4,7 @@ const bookingModel = require("../models/booking.model");
 const bookingDetailsModel = require("../models/bookingDetails.model");
 const fileUpload = require("../helper/fileUpload");
 const tripleSHA1 = require("../helper/sha1_hash");
-const { default: mongoose } = require("mongoose");
+const mongoose = require("mongoose");
 
 
 const addBooking = async (req, res) => {
@@ -74,8 +74,12 @@ const addBooking = async (req, res) => {
 
             // Upload file
             let uploadPath = "";
+            let photoPath = "";
             if (guest.idProof) {
                 uploadPath = await fileUpload(guest.idProof);
+            }
+            if (guest.photo) {
+                photoPath = await fileUpload(guest.photo);
             }
             // let pathHash = tripleSHA1(upload, 3);
 
@@ -96,7 +100,9 @@ const addBooking = async (req, res) => {
                 booking_details_room_no: guest.roomNumber,
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
                 booking_details_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
-                booking_details_charge_amount_for_this_guest: getSiteSetting.charges_per_tourist || 0
+                booking_details_charge_amount_for_this_guest: getSiteSetting.charges_per_tourist || 0,
+                booking_details_guest_dob: guest.dob,
+                booking_details_guest_photo: photoPath
             });
         }
 
@@ -521,7 +527,7 @@ const getStat = async (req, res) => {
             },
         ]);
 
-        // Total Footfall
+        // Total Amenities
         const totalAmenity = await bookingModel.aggregate([
             {
                 $match: {
@@ -912,6 +918,104 @@ const touristFootfalDayWise = async (req, res) => {
 };
 
 
+// Update Checkout Date Time for Booking Details
+const updateCheckoutDateTime = async (req, res) => {
+    try {
+        const { bookingId, checkoutDateTime } = req.body;
+
+        if (!bookingId || !checkoutDateTime) {
+            return res.status(400).json({ err: "Please provide bookingId and checkoutDateTime." });
+        }
+
+
+        const updatedBookingDetails = await bookingDetailsModel.updateOne(
+            {
+                booking_details_booking_id: bookingId,
+                booking_details_status: { $ne: "1" }  // ✅ Correct $ne usage
+            },
+            {
+                $set: { booking_details_checkout_date_time: checkoutDateTime }
+            }
+        );
+
+
+        const updatedBooking = await bookingModel.updateOne(
+            {
+                _id: bookingId,
+                booking_status: { $ne: "1" }  // ✅ Correct $ne usage
+            },
+            {
+                $set: { booking_checkout_date_time: checkoutDateTime }
+            }
+        );
+
+        if (
+            (!updatedBookingDetails.matchedCount || !updatedBookingDetails.modifiedCount) &&
+            (!updatedBooking.matchedCount || !updatedBooking.modifiedCount)
+        ) {
+            return res.status(404).json({ err: "Checkout Date not updated" });
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error("updateCheckoutDateTime error:", error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+// Get Total Amount Hotel Wise
+const getTotalAmountHotelWise = async (req, res) => {
+    const { startDate, endDate } = req.body;
+
+    try {
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        let matches = { IsDel: "0" };
+
+        if (startDate && endDate) {
+            matches.booking_checkin_date_time = {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
+        }
+
+        const guestStats = await bookingModel.aggregate([
+            { $match: matches },
+            {
+                $group: {
+                    _id: "$booking_hotel_id", // Group by hotel ID
+                    totalAmount: {
+                        $sum: {
+                            $cond: [
+                                { $gt: [{ $toDouble: "$booking_bill_amount" }, 0] },
+                                { $toDouble: "$booking_bill_amount" },
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    hotelId: "$_id",
+                    _id: 0,
+                    totalAmount: 1
+                }
+            }
+        ]);
+
+        res.status(200).json(guestStats);
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
 
 
 
@@ -923,5 +1027,7 @@ module.exports = {
     getStat,
     getTotalStatsforAdmin,
     touristFootfallDate,
-    touristFootfalDayWise
+    touristFootfalDayWise,
+    updateCheckoutDateTime,
+    getTotalAmountHotelWise
 }

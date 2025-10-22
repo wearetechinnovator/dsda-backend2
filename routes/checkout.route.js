@@ -1,7 +1,8 @@
 const router = require("express").Router();
 const {
     getHeadOfBooking,
-    checkOut
+    checkOut,
+    updateCheckoutDateTime
 } = require('../controllers/booking.controller')
 
 
@@ -13,6 +14,10 @@ router
 router
     .route('/get-booking-head')
     .post(getHeadOfBooking);
+
+router
+    .route('/update-checkout-datetime')
+    .post(updateCheckoutDateTime);
 
 
 module.exports = router;

@@ -19,6 +19,8 @@ const bookingDetailsSchema = new mongoose.Schema({
     booking_details_guest_phone: String,
     booking_details_guest_gender: String,
     booking_details_guest_age: String,
+    booking_details_guest_dob: String,
+    booking_details_guest_photo: String,
     booking_details_guest_nationality: String,
     booking_details_guest_address: String,
     booking_details_country: String,

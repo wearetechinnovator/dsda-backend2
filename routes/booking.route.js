@@ -6,7 +6,8 @@ const {
     getTotalStatsforAdmin,
     touristFootfallDate,
     touristFootfalDayWise,
-    getTotalAmountHotelWise
+    getTotalAmountHotelWise,
+    getBookingSummaryByDateRange
 } = require('../controllers/booking.controller')
 
 
@@ -15,10 +16,12 @@ router
     .route('/add-booking')
     .post(addBooking);
 
+
 router
     .route('/get-booking')
     .post(getBooking);
 
+    
 router
     .route('/get-stats')
     .post(getStat);
@@ -41,6 +44,12 @@ router
 router
     .route("/get-hotel-wise-total-amount")
     .post(getTotalAmountHotelWise);
+
+
+router
+    .route("/get-booking-summary-by-daterange")
+    .post(getBookingSummaryByDateRange);
+
 
 
 module.exports = router;

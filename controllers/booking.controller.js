@@ -456,10 +456,8 @@ const getStat = async (req, res) => {
     }
 
     try {
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
+        const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
+
 
         // Total Occupied bed
         const occu = await bookingDetailsModel.find({
@@ -475,7 +473,7 @@ const getStat = async (req, res) => {
         const getTotalFootFall = await bookingModel.aggregate([
             {
                 $match: {
-                    booking_hotel_id: hotelId,
+                    booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
                     IsDel: "0",
                 },
             },
@@ -487,16 +485,14 @@ const getStat = async (req, res) => {
             },
         ]);
 
+
         // Today Footfall
         const getTodayFootFall = await bookingModel.aggregate([
             {
                 $match: {
-                    booking_hotel_id: hotelId,
-                    booking_checkin_date_time: {
-                        $gte: startOfDay.toISOString(),
-                        $lte: endOfDay.toISOString(),
-                    },
-                    IsDel: "0", // optional: only active bookings
+                    booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
+                    booking_checkin_date_time: { $regex: `^${todayStr}` },
+                    IsDel: "0",
                 },
             },
             {
@@ -507,22 +503,20 @@ const getStat = async (req, res) => {
             },
         ]);
 
+
         // Today aminity charge;
         const todayTotal = await bookingModel.aggregate([
             {
                 $match: {
-                    booking_hotel_id: hotelId,
-                    booking_checkin_date_time: {
-                        $gte: startOfDay.toISOString(),
-                        $lte: endOfDay.toISOString(),
-                    },
-                    IsDel: "0", // optional: only active bookings
+                    booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
+                    booking_checkin_date_time: { $regex: `^${todayStr}` },
+                    IsDel: "0",
                 },
             },
             {
                 $group: {
                     _id: null,
-                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } }
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } },
                 },
             },
         ]);
@@ -531,7 +525,7 @@ const getStat = async (req, res) => {
         const totalAmenity = await bookingModel.aggregate([
             {
                 $match: {
-                    booking_hotel_id: hotelId,
+                    booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
                     IsDel: "0", // optional: only active bookings
                 },
             },
@@ -964,6 +958,7 @@ const updateCheckoutDateTime = async (req, res) => {
 };
 
 
+
 // Get Total Amount Hotel Wise
 const getTotalAmountHotelWise = async (req, res) => {
     const { startDate, endDate } = req.body;
@@ -1017,6 +1012,87 @@ const getTotalAmountHotelWise = async (req, res) => {
 
 
 
+// Get Booking summary by date range;
+const getBookingSummaryByDateRange = async (req, res) => {
+    const limit = parseInt(req.body?.limit ?? 10);
+    const page = parseInt(req.body?.page ?? 1);
+    const skip = (page - 1) * limit;
+    const { startDate, endDate, hotelId } = req.body;
+
+    try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const dateArray = [];
+        let currentDate = new Date(start);
+
+        while (currentDate <= end) {
+            dateArray.push(currentDate.toISOString().split("T")[0]); // YYYY-MM-DD
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Aggregate bookings
+        const bookings = await bookingModel.aggregate([
+            {
+                $match: {
+                    IsDel: "0",
+                    booking_checkin_date_time: {
+                        $gte: start.toISOString().split("T")[0],
+                        $lte: end.toISOString().split("T")[0],
+                    },
+                    ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(hotelId) } : {})
+                },
+            },
+            {
+                $group: {
+                    _id: "$booking_checkin_date_time",
+                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } },
+                    activeHotelIds: { $addToSet: "$booking_hotel_id" },
+                },
+            },
+            {
+                $addFields: {
+                    activeHotelCount: { $size: "$activeHotelIds" },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    totalGuests: 1,
+                    totalAmount: 1,
+                    activeHotelCount: 1,
+                },
+            },
+        ]);
+
+        // Map dates to results, fill missing dates with 0
+        const fullResult = dateArray.map(date => {
+            const booking = bookings.find(b => b._id.split(" ")[0] === date);
+            return {
+                date,
+                totalGuests: booking ? booking.totalGuests : 0,
+                totalAmount: booking ? booking.totalAmount : 0,
+                activeHotelCount: booking ? booking.activeHotelCount : 0,
+            };
+        });
+
+        // Apply pagination
+        const paginatedResult = fullResult.slice(skip, skip + limit);
+
+        return res.status(200).json({
+            total: fullResult.length,
+            page,
+            limit,
+            data: paginatedResult,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
 
 
 module.exports = {
@@ -1029,5 +1105,6 @@ module.exports = {
     touristFootfallDate,
     touristFootfalDayWise,
     updateCheckoutDateTime,
-    getTotalAmountHotelWise
+    getTotalAmountHotelWise,
+    getBookingSummaryByDateRange
 }

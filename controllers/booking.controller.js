@@ -1094,6 +1094,82 @@ const getBookingSummaryByDateRange = async (req, res) => {
 
 
 
+// Get Hotel Details with Total Guest Enrolled and Total Charges;
+const getHotelWithEnrolledData = async (req, res) => {
+    const limit = parseInt(req.body?.limit ?? 10);
+    const page = parseInt(req.body?.page ?? 1);
+    const skip = (page - 1) * limit;
+    const { startDate, endDate, hotelId } = req.body;
+
+    try {
+        // Build dynamic match filter
+        const matchFilter = { IsDel: "0" };
+
+        // Add optional date filter
+        if (startDate && endDate) {
+            if (startDate === endDate) {
+                matchFilter.booking_checkin_date_time = { $regex: `^${startDate}` };
+            } else {
+                matchFilter.booking_checkin_date_time = {
+                    $gte: new Date(startDate).toISOString().split("T")[0],
+                    $lte: new Date(endDate).toISOString().split("T")[0],
+                };
+            }
+
+        }
+
+        // Add optional hotel filter
+        if (hotelId) {
+            matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
+        }
+
+        // Main aggregation with pagination
+        const bookings = await bookingModel.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: "$booking_hotel_id",
+                    totalEnrolled: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    totalCharges: { $sum: { $toDouble: "$booking_bill_amount" } },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    hotelId: "$_id",
+                    totalEnrolled: 1,
+                    totalCharges: 1,
+                },
+            },
+            { $sort: { totalEnrolled: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+        ]);
+
+        // Total count for pagination
+        const totalCount = await bookingModel.aggregate([
+            { $match: matchFilter },
+            { $group: { _id: "$booking_hotel_id" } },
+            { $count: "total" },
+        ]);
+
+        const total = totalCount[0]?.total ?? 0;
+
+        return res.status(200).json({
+            total,
+            page,
+            limit,
+            data: bookings,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+
 
 module.exports = {
     addBooking,
@@ -1106,5 +1182,6 @@ module.exports = {
     touristFootfalDayWise,
     updateCheckoutDateTime,
     getTotalAmountHotelWise,
-    getBookingSummaryByDateRange
+    getBookingSummaryByDateRange,
+    getHotelWithEnrolledData
 }

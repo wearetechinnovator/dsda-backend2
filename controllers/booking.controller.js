@@ -7,6 +7,7 @@ const tripleSHA1 = require("../helper/sha1_hash");
 const mongoose = require("mongoose");
 
 
+
 const addBooking = async (req, res) => {
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
@@ -1031,16 +1032,21 @@ const getBookingSummaryByDateRange = async (req, res) => {
         }
 
         // Aggregate bookings
+        let match = {
+            IsDel: "0",
+            ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) } : {})
+        }
+
+        if (startDate && endDate) {
+            match.booking_checkin_date_time = {
+                $gte: start.toISOString().split("T")[0],
+                $lte: end.toISOString().split("T")[0],
+            }
+        }
+
         const bookings = await bookingModel.aggregate([
             {
-                $match: {
-                    IsDel: "0",
-                    booking_checkin_date_time: {
-                        $gte: start.toISOString().split("T")[0],
-                        $lte: end.toISOString().split("T")[0],
-                    },
-                    ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(hotelId) } : {})
-                },
+                $match: match,
             },
             {
                 $group: {

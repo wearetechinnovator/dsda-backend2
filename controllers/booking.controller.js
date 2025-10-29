@@ -76,6 +76,7 @@ const addBooking = async (req, res) => {
             // Upload file
             let uploadPath = "";
             let photoPath = "";
+            
             if (guest.idProof) {
                 uploadPath = await fileUpload(guest.idProof);
             }
@@ -248,7 +249,11 @@ const getBooking = async (req, res) => {
 
 
         const data = await bookingDetailsModel.find(query)
-            .skip(skip).limit(limit).sort({ _id: -1 }).populate('booking_details_booking_id');
+            .skip(skip).limit(limit).sort({ 
+                booking_details_checkin_date_time: -1, 
+                booking_details_booking_id: -1,
+                booking_details_is_head_guest: -1
+             }).populate('booking_details_booking_id');
         const totalCount = await bookingDetailsModel.countDocuments(query);
 
         const result = { data: data, total: totalCount, page, limit };
@@ -976,6 +981,58 @@ const getTotalAmountHotelWise = async (req, res) => {
                 $lte: endDateTime
             }
         }
+        const guestStats = await bookingModel.aggregate([
+            { $match: matches },
+            {
+                $group: {
+                    _id: "$booking_hotel_id", // Group by hotel ID
+                    totalAmount: {
+                        $sum: {
+                            $cond: [
+                                { $gt: [{ $toDouble: "$booking_bill_amount" }, 0] },
+                                { $toDouble: "$booking_bill_amount" },
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    hotelId: "$_id",
+                    _id: 0,
+                    totalAmount: 1
+                }
+            }
+        ]);
+
+        res.status(200).json(guestStats);
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+
+// Get Total Amount Hotel Id
+const getTotalAmountHotelId = async (req, res) => {
+    const { startDate, endDate, hotelId } = req.body;
+
+    try {
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        let matches = { IsDel: "0",  booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId))};
+
+        if (startDate && endDate) {
+            matches.booking_checkin_date_time = {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
+        }
 
         const guestStats = await bookingModel.aggregate([
             { $match: matches },
@@ -1189,5 +1246,6 @@ module.exports = {
     updateCheckoutDateTime,
     getTotalAmountHotelWise,
     getBookingSummaryByDateRange,
-    getHotelWithEnrolledData
+    getHotelWithEnrolledData,
+    getTotalAmountHotelId
 }

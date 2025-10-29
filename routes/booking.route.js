@@ -8,7 +8,8 @@ const {
     touristFootfalDayWise,
     getTotalAmountHotelWise,
     getBookingSummaryByDateRange,
-    getHotelWithEnrolledData
+    getHotelWithEnrolledData,
+    getTotalAmountHotelId
 } = require('../controllers/booking.controller')
 
 
@@ -45,6 +46,11 @@ router
 router
     .route("/get-hotel-wise-total-amount")
     .post(getTotalAmountHotelWise);
+
+
+router
+    .route("/get-hotel-id-total-amount")
+    .post(getTotalAmountHotelId);
 
 
 router

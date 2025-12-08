@@ -4,17 +4,33 @@ const bookingSchema = new mongoose.Schema({
     booking_hotel_id: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        index:true
+        index: true
     },
-    booking_head_guest_name: String,
-    booking_head_guest_phone: String,
-    booking_number_of_guest: String,
-    booking_checkin_date_time: String,
-    booking_checkout_date_time: String,
+    booking_head_guest_name: {
+        type: String,
+        index: true
+    },
+    booking_head_guest_phone: {
+        type: String,
+        index: true
+    },
+    booking_number_of_guest: {
+        type: String,
+        index: true
+    },
+    booking_checkin_date_time: {
+        type: String,
+        index: true
+    },
+    booking_checkout_date_time: {
+        type: String,
+        index: true
+    },
     booking_status: {
         type: String,
         enum: ['0', '1', '2'], // 0=Checkin | 1=Checkout | 2=Partial Checkout
-        default: '0'
+        default: '0',
+        index: true
     },
     booking_bill_amount_per_guest: String,
     booking_bill_amount: String,

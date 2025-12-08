@@ -9,7 +9,7 @@ const bookingDetailsSchema = new mongoose.Schema({
     },
     booking_details_hotel_id: {
         type: mongoose.Schema.Types.ObjectId,
-        required: true,
+        // required: true,
     },
     booking_details_is_head_guest: {
         type: String,
@@ -53,7 +53,8 @@ const bookingDetailsSchema = new mongoose.Schema({
     IsDel: {
         type: String,
         enum: ['0', '1', '2'], // 0=Active | 1=Trash | 2=Permanent Delete
-        default: '0'
+        default: '0',
+        index: true
     }
 }, { timestamps: true })
 

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const JWT_KEY = process.env.JWT_KEY;
 
+
 const middleware = async (req, res, next) => {
   try {
     let token;
@@ -10,6 +11,7 @@ const middleware = async (req, res, next) => {
     } else {
       token = req.headers?.authorization?.split(" ")[1];
     }
+    console.log(req.url,"----", req.method,"----", token)
 
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
@@ -21,6 +23,7 @@ const middleware = async (req, res, next) => {
     next();
 
   } catch (err) {
+    console.log(err)
     return res.status(401).json({ message: "Invalid or expired token" });
   }
   

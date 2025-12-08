@@ -5,31 +5,53 @@ const bookingDetailsModel = require("../models/bookingDetails.model");
 const fileUpload = require("../helper/fileUpload");
 const tripleSHA1 = require("../helper/sha1_hash");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+const https = require('https')
 
 
 
 const addBooking = async (req, res) => {
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
-        guestList, hotelId, token, checkoutDate, checkoutTime
+        guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck,
     } = req.body;
 
+    // ======================= [Mobile Number Exsistance checking] ====================;
+    if (existsCheck && mobileNumber) {
+        try {
+            const check = await bookingModel.find({
+                booking_head_guest_phone: mobileNumber,
+                booking_status: '0'
+            });
+
+            if (check.length > 0) {
+                return res.status(200).json({ exist: true })
+            } else {
+                return res.status(200).json({ exist: false })
+            }
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({ err: "Something went wrong" });
+        }
+    }
+
+    // ======================= [Booking Add] ====================;
+
     if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime, checkoutDate, checkoutTime].some(field => field === '')) {
-        return res.status(401).json({ err: 'All fields are required first' })
+        return res.status(401).json({ err: 'All fields are required' })
     }
 
     for (let i = 0; i < guestList.length; i++) {
         const guest = guestList[i];
         if (i === 0) {
             if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
-                return res.status(401).json({ err: 'All fields are required sec' })
+                return res.status(401).json({ err: 'All fields are required' })
             }
         } else {
             if ([guest.guestName, guest.gender, guest.age].some(field => !field || field === '')) {
-                return res.status(401).json({ err: 'All fields are required sec' })
+                return res.status(401).json({ err: 'All fields are required' })
             }
         }
-
     }
     // =====================================[ All Validation Close here ]===================================
 
@@ -76,7 +98,7 @@ const addBooking = async (req, res) => {
             // Upload file
             let uploadPath = "";
             let photoPath = "";
-            
+
             if (guest.idProof) {
                 uploadPath = await fileUpload(guest.idProof);
             }
@@ -107,6 +129,62 @@ const addBooking = async (req, res) => {
                 booking_details_guest_photo: photoPath
             });
         }
+
+
+        // =========================[SEND WELCOME MESSAGE]========================
+        // =======================================================================
+console.log(guestList[0].mobileNumber)
+        const username = "WBDSDA"; // username of the department
+        const password = "Admin#123"; // password of the department
+        const senderid = "WBDSDA"; // sender id of the department
+        const message = `Welcome to Digha. For Mahaprasad of Jagannath Dham, please contact 9059052550 Digha Sankarpur Dev Authority`; // message content
+        const mobileno = guestList[0].mobileNumber; // single number
+        const deptSecureKey = "9a6e9fff-02d5-4275-99f8-9992b04e7580"; // department secure key
+        const templateid = "1407176303661507970"; // template id
+
+        // Encrypt password (SHA1)
+        const encryptedPassword = crypto
+            .createHash("sha1")
+            .update(password.trim())
+            .digest("hex");
+
+
+        // Generate key (SHA512)
+        const key = crypto
+            .createHash("sha512")
+            .update(
+                username.trim() +
+                senderid.trim() +
+                message.trim() +
+                deptSecureKey.trim()
+            )
+            .digest("hex");
+
+        // Prepare data
+        const data = {
+            username: username.trim(),
+            password: encryptedPassword.trim(),
+            senderid: senderid.trim(),
+            content: message.trim(),
+            smsservicetype: "singlemsg",
+            mobileno: mobileno.trim(),
+            key: key.trim(),
+            templateid: templateid.trim(),
+        };
+
+        const body = new URLSearchParams(data);
+        const agent = new https.Agent({ rejectUnauthorized: false });
+        const url = "https://msdgweb.mgov.gov.in/esms/sendsmsrequestDLT";
+        const msgRes = await fetch(url, {
+            method: "POST",
+            body: body,
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            agent: agent
+        });
+        console.log(body)
+        console.log(msgRes);
 
         return res.status(200).json(newBooking);
 
@@ -175,7 +253,9 @@ const getBooking = async (req, res) => {
         }
 
         if (bookingId) {
-            const data = await bookingDetailsModel.find({ booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0" });
+            const data = await bookingDetailsModel.find({
+                booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0"
+            });
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -249,11 +329,11 @@ const getBooking = async (req, res) => {
 
 
         const data = await bookingDetailsModel.find(query)
-            .skip(skip).limit(limit).sort({ 
-                booking_details_checkin_date_time: -1, 
+            .skip(skip).limit(limit).sort({
+                booking_details_checkin_date_time: -1,
                 booking_details_booking_id: -1,
                 booking_details_is_head_guest: -1
-             }).populate('booking_details_booking_id');
+            }).populate('booking_details_booking_id');
         const totalCount = await bookingDetailsModel.countDocuments(query);
 
         const result = { data: data, total: totalCount, page, limit };
@@ -1025,7 +1105,7 @@ const getTotalAmountHotelId = async (req, res) => {
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
 
-        let matches = { IsDel: "0",  booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId))};
+        let matches = { IsDel: "0", booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) };
 
         if (startDate && endDate) {
             matches.booking_checkin_date_time = {

@@ -115,6 +115,7 @@ const addBooking = async (req, res) => {
                 booking_details_guest_gender: guest.gender,
                 booking_details_guest_age: guest.age,
                 booking_details_guest_nationality: guest.nationality,
+                booking_details_country: guest.nationality === "india" ? "India" : guest.country,
                 booking_details_guest_address: guest.address,
                 booking_details_guest_id_number: guest.idNumber,
                 booking_details_guest_id_type: guest.idType,

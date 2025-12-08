@@ -1,5 +1,4 @@
 const fetch = require("node-fetch");
-const connectRedis = require("../db/redis");
 const bookingModel = require("../models/booking.model");
 const bookingDetailsModel = require("../models/bookingDetails.model");
 const fileUpload = require("../helper/fileUpload");
@@ -133,7 +132,7 @@ const addBooking = async (req, res) => {
 
         // =========================[SEND WELCOME MESSAGE]========================
         // =======================================================================
-console.log(guestList[0].mobileNumber)
+
         const username = "WBDSDA"; // username of the department
         const password = "Admin#123"; // password of the department
         const senderid = "WBDSDA"; // sender id of the department
@@ -188,7 +187,6 @@ console.log(guestList[0].mobileNumber)
 
         return res.status(200).json(newBooking);
 
-
     } catch (error) {
         console.log(error);
         return res.status(500).json({ err: "Something went wrong" });
@@ -219,8 +217,6 @@ const getBooking = async (req, res) => {
 
 
     try {
-        const redisDB = await connectRedis();
-
 
         // ::::::::::::: [ Provide Hotel and Get Total Enrolled Data ]:::::::::::::
         if (hotelId && isEnrolled) {
@@ -280,13 +276,6 @@ const getBooking = async (req, res) => {
         }
 
 
-        const cacheKey = `booking-details:page=${page}:limit=${limit}`;
-        // const cachedUsers = await redisDB.get(cacheKey);
-
-        // if (cachedUsers) {
-        //     return res.status(200).json(JSON.parse(cachedUsers));
-        // }
-
         const query = { IsDel: trash ? "1" : "0" };
 
         if (isHead) {
@@ -338,8 +327,6 @@ const getBooking = async (req, res) => {
 
         const result = { data: data, total: totalCount, page, limit };
 
-        await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
-
         return res.status(200).json(result);
 
     } catch (error) {
@@ -364,8 +351,6 @@ const getHeadOfBooking = async (req, res) => {
 
 
     try {
-        const redisDB = await connectRedis();
-
         if (id) {
             const data = await bookingModel.findOne({ _id: id, IsDel: "0" });
             if (!data) return res.status(404).json({ err: 'No data found' });
@@ -382,9 +367,6 @@ const getHeadOfBooking = async (req, res) => {
             return res.status(200).json(data);
         }
 
-        const cacheKey = `headBookingGet:page=${page}:limit=${limit}:month=${month}:year=${year}`;
-        // const cached = await redisDB.get(cacheKey);
-        // if (cached) return res.status(200).json(JSON.parse(cached));
 
         const query = { IsDel: trash ? "1" : "0" };
         if (hotelId) query.booking_hotel_id = hotelId;
@@ -453,8 +435,6 @@ const getHeadOfBooking = async (req, res) => {
             page,
             limit
         };
-
-        await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
 
         return res.status(200).json(result);
 
@@ -842,7 +822,6 @@ const touristFootfallDate = async (req, res) => {
     }
 
     try {
-        const redisDB = await connectRedis();
 
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
@@ -888,7 +867,6 @@ const touristFootfalDayWise = async (req, res) => {
     const { hotelId, startDate, endDate, zone, sector, block, district, policeStation } = req.body;
 
     try {
-        const redisDB = await connectRedis();
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
 

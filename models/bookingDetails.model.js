@@ -54,7 +54,6 @@ const bookingDetailsSchema = new mongoose.Schema({
         type: String,
         enum: ['0', '1', '2'], // 0=Active | 1=Trash | 2=Permanent Delete
         default: '0',
-        index: true
     }
 }, { timestamps: true })
 

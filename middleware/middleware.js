@@ -11,8 +11,6 @@ const middleware = async (req, res, next) => {
     } else {
       token = req.headers?.authorization?.split(" ")[1];
     }
-    console.log(req.url,"----", req.method,"----", token)
-
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }

@@ -8,15 +8,12 @@ const bookingSchema = new mongoose.Schema({
     },
     booking_head_guest_name: {
         type: String,
-        index: true
     },
     booking_head_guest_phone: {
         type: String,
-        index: true
     },
     booking_number_of_guest: {
         type: String,
-        index: true
     },
     booking_checkin_date_time: {
         type: String,
@@ -30,7 +27,6 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         enum: ['0', '1', '2'], // 0=Checkin | 1=Checkout | 2=Partial Checkout
         default: '0',
-        index: true
     },
     booking_bill_amount_per_guest: String,
     booking_bill_amount: String,
@@ -47,8 +43,7 @@ const bookingSchema = new mongoose.Schema({
     IsDel: {
         type: String,
         enum: ['0', '1', '2'], // 0=Active | 1=Trash | 2=Permanent Delete
-        default: '0',
-        index: true
+        default: '0'
     }
 }, { timestamps: true })
 

@@ -9,7 +9,8 @@ const {
     getTotalAmountHotelWise,
     getBookingSummaryByDateRange,
     getHotelWithEnrolledData,
-    getTotalAmountHotelId
+    getTotalAmountHotelId,
+    getPublicBookingDetails
 } = require('../controllers/booking.controller')
 const middleware = require("../middleware/middleware");
 
@@ -23,6 +24,9 @@ router
     .route('/get-booking')
     .post(middleware, getBooking);
 
+router
+    .route('/public/get-booking') // ----[For Public bill use] ---
+    .post(getPublicBookingDetails);
     
 router
     .route('/get-stats')

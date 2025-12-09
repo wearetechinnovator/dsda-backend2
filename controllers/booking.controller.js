@@ -117,6 +117,8 @@ const addBooking = async (req, res) => {
                 booking_details_guest_nationality: guest.nationality,
                 booking_details_country: guest.nationality === "india" ? "India" : guest.country,
                 booking_details_guest_address: guest.address,
+                booking_details_district: guest.district,
+                booking_details_state: guest.state,
                 booking_details_guest_id_number: guest.idNumber,
                 booking_details_guest_id_type: guest.idType,
                 booking_details_guest_id_proof: uploadPath,
@@ -1292,6 +1294,30 @@ const getHotelWithEnrolledData = async (req, res) => {
 
 
 
+// Get booking data for public bill View;
+const getPublicBookingDetails = async (req, res) => {
+    const { id } = req.body;
+
+    if (!id) {
+        return res.status(401).json({ err: "Please provide bill id" });
+    }
+
+    try {
+        const bookingData = await bookingModel.findOne({ _id: id }).populate('booking_hotel_id')
+
+        if (!bookingData) {
+            return res.status(404).json({ err: 'Bill not found' })
+        }
+
+        return res.status(200).json(bookingData);
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+}
+
+
 
 module.exports = {
     addBooking,
@@ -1306,5 +1332,6 @@ module.exports = {
     getTotalAmountHotelWise,
     getBookingSummaryByDateRange,
     getHotelWithEnrolledData,
-    getTotalAmountHotelId
+    getTotalAmountHotelId,
+    getPublicBookingDetails
 }

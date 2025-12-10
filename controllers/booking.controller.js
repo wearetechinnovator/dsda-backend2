@@ -510,7 +510,7 @@ const checkOut = async (req, res) => {
 
     } catch (error) {
         console.error("Checkout error:", error);
-        return res.status(500).json({ err: "Something went wrong." });
+        return res.status(500).json({ err: "Something went wrong" });
     }
 };
 
@@ -1319,6 +1319,69 @@ const getPublicBookingDetails = async (req, res) => {
 
 
 
+const autoChekout = async (req, res) => {
+    try {
+        // Convert IST date into DB-compatible string format
+        function getISTDateString() {
+            const utcNow = Date.now();
+            const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+            const d = new Date(utcNow + IST_OFFSET);
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+
+            const hours = String(d.getHours()).padStart(2, "0");
+            const mins = String(d.getMinutes()).padStart(2, "0");
+            const secs = String(d.getSeconds()).padStart(2, "0");
+
+            return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
+        }
+
+        const nowIST = getISTDateString();
+
+        // Auto checkout for booking details
+        const checkoutBookingDetails = await bookingDetailsModel.updateMany(
+            {
+                booking_details_status: "0",             // active
+                booking_details_checkout_date_time: { $lt: nowIST }
+            },
+            {
+                $set: {
+                    booking_details_status: "1",
+                    booking_details_checkout_date_time: nowIST
+                }
+            }
+        );
+
+        // Auto checkout for booking header
+        const checkoutBooking = await bookingModel.updateMany(
+            {
+                booking_status: "0",                     // active
+                booking_checkout_date_time: { $lt: nowIST }
+            },
+            {
+                $set: {
+                    booking_status: "1",
+                    booking_checkout_date_time: nowIST
+                }
+            }
+        );
+
+        if (checkoutBookingDetails.modifiedCount > 0 || checkoutBooking.modifiedCount > 0) {
+            return res.status(200).json({ msg: "Auto checkout successfully" });
+        }
+
+        return res.status(500).json({ err: "Unable to auto checkout" });
+
+    } catch (error) {
+        console.error("Checkout error:", error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+};
+
+
+
 module.exports = {
     addBooking,
     getBooking,
@@ -1333,5 +1396,6 @@ module.exports = {
     getBookingSummaryByDateRange,
     getHotelWithEnrolledData,
     getTotalAmountHotelId,
-    getPublicBookingDetails
+    getPublicBookingDetails,
+    autoChekout
 }

@@ -8,8 +8,12 @@ const compression = require("compression");
 const router = require("./routes/index.route");
 
 
+// app.use(cors({
+//     origin: process.env.CORS_ORIGIN.split(","),
+//     credentials: true
+// }));
 app.use(cors({
-    origin: process.env.CORS_ORIGIN.split(","),
+    origin: '*',
     credentials: true
 }));
 app.use(compression({

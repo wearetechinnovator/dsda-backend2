@@ -7,49 +7,64 @@ const {
     touristFootfallDate,
     touristFootfalDayWise,
     getTotalAmountHotelWise,
-    getBookingSummaryByDateRange
+    getBookingSummaryByDateRange,
+    getHotelWithEnrolledData,
+    getTotalAmountHotelId,
+    getPublicBookingDetails
 } = require('../controllers/booking.controller')
-
+const middleware = require("../middleware/middleware");
 
 
 router
     .route('/add-booking')
-    .post(addBooking);
+    .post(middleware, addBooking);
 
 
 router
     .route('/get-booking')
-    .post(getBooking);
+    .post(middleware, getBooking);
 
+router
+    .route('/public/get-booking') // ----[For Public bill use] ---
+    .post(getPublicBookingDetails);
     
 router
     .route('/get-stats')
-    .post(getStat);
+    .post(middleware, getStat);
 
 router
     .route("/get-admin-stats")
-    .post(getTotalStatsforAdmin);
+    .post(middleware, getTotalStatsforAdmin);
 
 
 router
     .route("/tourist-data/footfall")
-    .post(touristFootfallDate);
+    .post(middleware, touristFootfallDate);
 
 
 router
     .route("/tourist-data/footfall-daywise")
-    .post(touristFootfalDayWise);
+    .post(middleware, touristFootfalDayWise);
 
 
 router
     .route("/get-hotel-wise-total-amount")
-    .post(getTotalAmountHotelWise);
+    .post(middleware, getTotalAmountHotelWise);
+
+
+router
+    .route("/get-hotel-id-total-amount")
+    .post(middleware, getTotalAmountHotelId);
 
 
 router
     .route("/get-booking-summary-by-daterange")
-    .post(getBookingSummaryByDateRange);
+    .post(middleware, getBookingSummaryByDateRange);
 
+
+router
+    .route("/get-hotel-enrolled-data")
+    .post(middleware, getHotelWithEnrolledData);
 
 
 module.exports = router;

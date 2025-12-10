@@ -1,34 +1,56 @@
 const fetch = require("node-fetch");
-const connectRedis = require("../db/redis");
 const bookingModel = require("../models/booking.model");
 const bookingDetailsModel = require("../models/bookingDetails.model");
 const fileUpload = require("../helper/fileUpload");
 const tripleSHA1 = require("../helper/sha1_hash");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+const https = require('https')
+
 
 
 const addBooking = async (req, res) => {
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
-        guestList, hotelId, token, checkoutDate, checkoutTime
+        guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck,
     } = req.body;
 
+    // ======================= [Mobile Number Exsistance checking] ====================;
+    if (existsCheck && mobileNumber) {
+        try {
+            const check = await bookingModel.find({
+                booking_head_guest_phone: mobileNumber,
+                booking_status: '0'
+            });
+
+            if (check.length > 0) {
+                return res.status(200).json({ exist: true })
+            } else {
+                return res.status(200).json({ exist: false })
+            }
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({ err: "Something went wrong" });
+        }
+    }
+
+    // ======================= [Booking Add] ====================;
+
     if ([mobileNumber, NumberOfGuest, checkInDate, checkInTime, checkoutDate, checkoutTime].some(field => field === '')) {
-        return res.status(401).json({ err: 'All fields are required first' })
+        return res.status(401).json({ err: 'All fields are required' })
     }
 
     for (let i = 0; i < guestList.length; i++) {
         const guest = guestList[i];
         if (i === 0) {
             if ([guest.guestName, guest.gender, guest.age, guest.nationality, guest.address, guest.idType, guest.idNumber, guest.mobileNumber, guest.roomNumber].some(field => !field || field === '')) {
-                return res.status(401).json({ err: 'All fields are required sec' })
+                return res.status(401).json({ err: 'All fields are required' })
             }
         } else {
             if ([guest.guestName, guest.gender, guest.age].some(field => !field || field === '')) {
-                return res.status(401).json({ err: 'All fields are required sec' })
+                return res.status(401).json({ err: 'All fields are required' })
             }
         }
-
     }
     // =====================================[ All Validation Close here ]===================================
 
@@ -75,6 +97,7 @@ const addBooking = async (req, res) => {
             // Upload file
             let uploadPath = "";
             let photoPath = "";
+
             if (guest.idProof) {
                 uploadPath = await fileUpload(guest.idProof);
             }
@@ -92,7 +115,10 @@ const addBooking = async (req, res) => {
                 booking_details_guest_gender: guest.gender,
                 booking_details_guest_age: guest.age,
                 booking_details_guest_nationality: guest.nationality,
+                booking_details_country: guest.nationality === "india" ? "India" : guest.country,
                 booking_details_guest_address: guest.address,
+                booking_details_district: guest.district,
+                booking_details_state: guest.state,
                 booking_details_guest_id_number: guest.idNumber,
                 booking_details_guest_id_type: guest.idType,
                 booking_details_guest_id_proof: uploadPath,
@@ -106,8 +132,63 @@ const addBooking = async (req, res) => {
             });
         }
 
-        return res.status(200).json(newBooking);
 
+        // =========================[SEND WELCOME MESSAGE]========================
+        // =======================================================================
+
+        const username = "WBDSDA"; // username of the department
+        const password = "Admin#123"; // password of the department
+        const senderid = "WBDSDA"; // sender id of the department
+        const message = `Welcome to Digha. For Mahaprasad of Jagannath Dham, please contact 9059052550 Digha Sankarpur Dev Authority`; // message content
+        const mobileno = guestList[0].mobileNumber; // single number
+        const deptSecureKey = "9a6e9fff-02d5-4275-99f8-9992b04e7580"; // department secure key
+        const templateid = "1407176303661507970"; // template id
+
+        // Encrypt password (SHA1)
+        const encryptedPassword = crypto
+            .createHash("sha1")
+            .update(password.trim())
+            .digest("hex");
+
+
+        // Generate key (SHA512)
+        const key = crypto
+            .createHash("sha512")
+            .update(
+                username.trim() +
+                senderid.trim() +
+                message.trim() +
+                deptSecureKey.trim()
+            )
+            .digest("hex");
+
+        // Prepare data
+        const data = {
+            username: username.trim(),
+            password: encryptedPassword.trim(),
+            senderid: senderid.trim(),
+            content: message.trim(),
+            smsservicetype: "singlemsg",
+            mobileno: mobileno.trim(),
+            key: key.trim(),
+            templateid: templateid.trim(),
+        };
+
+        const body = new URLSearchParams(data);
+        const agent = new https.Agent({ rejectUnauthorized: false });
+        const url = "https://msdgweb.mgov.gov.in/esms/sendsmsrequestDLT";
+        const msgRes = await fetch(url, {
+            method: "POST",
+            body: body,
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            agent: agent
+        });
+        console.log(body)
+        console.log(msgRes);
+
+        return res.status(200).json(newBooking);
 
     } catch (error) {
         console.log(error);
@@ -139,8 +220,6 @@ const getBooking = async (req, res) => {
 
 
     try {
-        const redisDB = await connectRedis();
-
 
         // ::::::::::::: [ Provide Hotel and Get Total Enrolled Data ]:::::::::::::
         if (hotelId && isEnrolled) {
@@ -173,7 +252,9 @@ const getBooking = async (req, res) => {
         }
 
         if (bookingId) {
-            const data = await bookingDetailsModel.find({ booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0" });
+            const data = await bookingDetailsModel.find({
+                booking_details_booking_id: bookingId, IsDel: "0", booking_details_status: "0"
+            });
             if (!data) {
                 return res.status(404).json({ err: 'No data found' });
             }
@@ -197,13 +278,6 @@ const getBooking = async (req, res) => {
             return res.status(200).json(data);
         }
 
-
-        const cacheKey = `booking-details:page=${page}:limit=${limit}`;
-        // const cachedUsers = await redisDB.get(cacheKey);
-
-        // if (cachedUsers) {
-        //     return res.status(200).json(JSON.parse(cachedUsers));
-        // }
 
         const query = { IsDel: trash ? "1" : "0" };
 
@@ -247,12 +321,14 @@ const getBooking = async (req, res) => {
 
 
         const data = await bookingDetailsModel.find(query)
-            .skip(skip).limit(limit).sort({ _id: -1 }).populate('booking_details_booking_id');
+            .skip(skip).limit(limit).sort({
+                booking_details_checkin_date_time: -1,
+                booking_details_booking_id: -1,
+                booking_details_is_head_guest: -1
+            }).populate('booking_details_booking_id');
         const totalCount = await bookingDetailsModel.countDocuments(query);
 
         const result = { data: data, total: totalCount, page, limit };
-
-        await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
 
         return res.status(200).json(result);
 
@@ -278,8 +354,6 @@ const getHeadOfBooking = async (req, res) => {
 
 
     try {
-        const redisDB = await connectRedis();
-
         if (id) {
             const data = await bookingModel.findOne({ _id: id, IsDel: "0" });
             if (!data) return res.status(404).json({ err: 'No data found' });
@@ -296,9 +370,6 @@ const getHeadOfBooking = async (req, res) => {
             return res.status(200).json(data);
         }
 
-        const cacheKey = `headBookingGet:page=${page}:limit=${limit}:month=${month}:year=${year}`;
-        // const cached = await redisDB.get(cacheKey);
-        // if (cached) return res.status(200).json(JSON.parse(cached));
 
         const query = { IsDel: trash ? "1" : "0" };
         if (hotelId) query.booking_hotel_id = hotelId;
@@ -367,8 +438,6 @@ const getHeadOfBooking = async (req, res) => {
             page,
             limit
         };
-
-        await redisDB.setEx(cacheKey, 5, JSON.stringify(result));
 
         return res.status(200).json(result);
 
@@ -441,7 +510,7 @@ const checkOut = async (req, res) => {
 
     } catch (error) {
         console.error("Checkout error:", error);
-        return res.status(500).json({ err: "Something went wrong." });
+        return res.status(500).json({ err: "Something went wrong" });
     }
 };
 
@@ -756,7 +825,6 @@ const touristFootfallDate = async (req, res) => {
     }
 
     try {
-        const redisDB = await connectRedis();
 
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
@@ -802,7 +870,6 @@ const touristFootfalDayWise = async (req, res) => {
     const { hotelId, startDate, endDate, zone, sector, block, district, policeStation } = req.body;
 
     try {
-        const redisDB = await connectRedis();
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
 
@@ -975,6 +1042,58 @@ const getTotalAmountHotelWise = async (req, res) => {
                 $lte: endDateTime
             }
         }
+        const guestStats = await bookingModel.aggregate([
+            { $match: matches },
+            {
+                $group: {
+                    _id: "$booking_hotel_id", // Group by hotel ID
+                    totalAmount: {
+                        $sum: {
+                            $cond: [
+                                { $gt: [{ $toDouble: "$booking_bill_amount" }, 0] },
+                                { $toDouble: "$booking_bill_amount" },
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    hotelId: "$_id",
+                    _id: 0,
+                    totalAmount: 1
+                }
+            }
+        ]);
+
+        res.status(200).json(guestStats);
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+
+// Get Total Amount Hotel Id
+const getTotalAmountHotelId = async (req, res) => {
+    const { startDate, endDate, hotelId } = req.body;
+
+    try {
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        let matches = { IsDel: "0", booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) };
+
+        if (startDate && endDate) {
+            matches.booking_checkin_date_time = {
+                $gte: startDateTime,
+                $lte: endDateTime
+            }
+        }
 
         const guestStats = await bookingModel.aggregate([
             { $match: matches },
@@ -1031,16 +1150,21 @@ const getBookingSummaryByDateRange = async (req, res) => {
         }
 
         // Aggregate bookings
+        let match = {
+            IsDel: "0",
+            ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) } : {})
+        }
+
+        if (startDate && endDate) {
+            match.booking_checkin_date_time = {
+                $gte: start.toISOString().split("T")[0],
+                $lte: end.toISOString().split("T")[0],
+            }
+        }
+
         const bookings = await bookingModel.aggregate([
             {
-                $match: {
-                    IsDel: "0",
-                    booking_checkin_date_time: {
-                        $gte: start.toISOString().split("T")[0],
-                        $lte: end.toISOString().split("T")[0],
-                    },
-                    ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(hotelId) } : {})
-                },
+                $match: match,
             },
             {
                 $group: {
@@ -1094,6 +1218,169 @@ const getBookingSummaryByDateRange = async (req, res) => {
 
 
 
+// Get Hotel Details with Total Guest Enrolled and Total Charges;
+const getHotelWithEnrolledData = async (req, res) => {
+    const limit = parseInt(req.body?.limit ?? 10);
+    const page = parseInt(req.body?.page ?? 1);
+    const skip = (page - 1) * limit;
+    const { startDate, endDate, hotelId } = req.body;
+
+    try {
+        // Build dynamic match filter
+        const matchFilter = { IsDel: "0" };
+
+        // Add optional date filter
+        if (startDate && endDate) {
+            if (startDate === endDate) {
+                matchFilter.booking_checkin_date_time = { $regex: `^${startDate}` };
+            } else {
+                matchFilter.booking_checkin_date_time = {
+                    $gte: new Date(startDate).toISOString().split("T")[0],
+                    $lte: new Date(endDate).toISOString().split("T")[0],
+                };
+            }
+
+        }
+
+        // Add optional hotel filter
+        if (hotelId) {
+            matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
+        }
+
+        // Main aggregation with pagination
+        const bookings = await bookingModel.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: "$booking_hotel_id",
+                    totalEnrolled: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    totalCharges: { $sum: { $toDouble: "$booking_bill_amount" } },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    hotelId: "$_id",
+                    totalEnrolled: 1,
+                    totalCharges: 1,
+                },
+            },
+            { $sort: { totalEnrolled: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+        ]);
+
+        // Total count for pagination
+        const totalCount = await bookingModel.aggregate([
+            { $match: matchFilter },
+            { $group: { _id: "$booking_hotel_id" } },
+            { $count: "total" },
+        ]);
+
+        const total = totalCount[0]?.total ?? 0;
+
+        return res.status(200).json({
+            total,
+            page,
+            limit,
+            data: bookings,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+};
+
+
+
+// Get booking data for public bill View;
+const getPublicBookingDetails = async (req, res) => {
+    const { id } = req.body;
+
+    if (!id) {
+        return res.status(401).json({ err: "Please provide bill id" });
+    }
+
+    try {
+        const bookingData = await bookingModel.findOne({ _id: id }).populate('booking_hotel_id')
+
+        if (!bookingData) {
+            return res.status(404).json({ err: 'Bill not found' })
+        }
+
+        return res.status(200).json(bookingData);
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, err: "Something went wrong" });
+    }
+}
+
+
+
+const autoChekout = async (req, res) => {
+    try {
+        // Convert IST date into DB-compatible string format
+        function getISTDateString() {
+            const utcNow = Date.now();
+            const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+            const d = new Date(utcNow + IST_OFFSET);
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+
+            const hours = String(d.getHours()).padStart(2, "0");
+            const mins = String(d.getMinutes()).padStart(2, "0");
+            const secs = String(d.getSeconds()).padStart(2, "0");
+
+            return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
+        }
+
+        const nowIST = getISTDateString();
+
+        // Auto checkout for booking details
+        const checkoutBookingDetails = await bookingDetailsModel.updateMany(
+            {
+                booking_details_status: "0",             // active
+                booking_details_checkout_date_time: { $lt: nowIST }
+            },
+            {
+                $set: {
+                    booking_details_status: "1",
+                    booking_details_checkout_date_time: nowIST
+                }
+            }
+        );
+
+        // Auto checkout for booking header
+        const checkoutBooking = await bookingModel.updateMany(
+            {
+                booking_status: "0",                     // active
+                booking_checkout_date_time: { $lt: nowIST }
+            },
+            {
+                $set: {
+                    booking_status: "1",
+                    booking_checkout_date_time: nowIST
+                }
+            }
+        );
+
+        if (checkoutBookingDetails.modifiedCount > 0 || checkoutBooking.modifiedCount > 0) {
+            return res.status(200).json({ msg: "Auto checkout successfully" });
+        }
+
+        return res.status(500).json({ err: "Unable to auto checkout" });
+
+    } catch (error) {
+        console.error("Checkout error:", error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+};
+
+
 
 module.exports = {
     addBooking,
@@ -1106,5 +1393,9 @@ module.exports = {
     touristFootfalDayWise,
     updateCheckoutDateTime,
     getTotalAmountHotelWise,
-    getBookingSummaryByDateRange
+    getBookingSummaryByDateRange,
+    getHotelWithEnrolledData,
+    getTotalAmountHotelId,
+    getPublicBookingDetails,
+    autoChekout
 }

@@ -26,7 +26,7 @@ const fileUpload = async (file, folder = "uploads") => {
         // Save file to disk
         fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
 
-        return filePath;
+        return fileName;
     } catch (error) {
         console.error("File upload error:", error);
         throw error;

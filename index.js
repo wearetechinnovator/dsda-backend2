@@ -36,7 +36,6 @@ app.get("/", (req, res) => {
 })
 
 
-
 // API
 app.use("/booking/api/v1", router);
 

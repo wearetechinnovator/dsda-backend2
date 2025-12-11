@@ -91,10 +91,11 @@ const addBooking = async (req, res) => {
 
 
         // Add booking details
+        let allGuestsToInsert = [];
+
         for (let i = 0; i < guestList.length; i++) {
             const guest = guestList[i];
 
-            // Upload file
             let uploadPath = "";
             let photoPath = "";
 
@@ -104,10 +105,8 @@ const addBooking = async (req, res) => {
             if (guest.photo) {
                 photoPath = await fileUpload(guest.photo);
             }
-            // let pathHash = tripleSHA1(upload, 3);
 
-
-            await bookingDetailsModel.create({
+            allGuestsToInsert.push({
                 booking_details_is_head_guest: i === 0 ? '1' : '0',
                 booking_details_booking_id: newBooking._id,
                 booking_details_hotel_id: hotelId,
@@ -131,6 +130,10 @@ const addBooking = async (req, res) => {
                 booking_details_guest_photo: photoPath
             });
         }
+
+        // ⬇️ Insert All Records At Once
+        await bookingDetailsModel.insertMany(allGuestsToInsert);
+
 
 
         // =========================[SEND WELCOME MESSAGE]========================

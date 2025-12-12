@@ -1178,77 +1178,98 @@ const getBookingSummaryByDateRange = async (req, res) => {
     try {
         const start = new Date(startDate);
         const end = new Date(endDate);
+
+        // build date array (YYYY-MM-DD)
         const dateArray = [];
         let currentDate = new Date(start);
-
         while (currentDate <= end) {
-            dateArray.push(currentDate.toISOString().split("T")[0]); // YYYY-MM-DD
+            dateArray.push(currentDate.toISOString().split("T")[0]);
             currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        // Aggregate bookings
-        let match = {
+        // base match without date (we'll filter by onlyDate in pipeline)
+        let baseMatch = {
             IsDel: "0",
             ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) } : {})
-        }
+        };
+        
 
-        if (startDate && endDate) {
-            match.booking_checkin_date_time = {
-                $gte: start.toISOString().split("T")[0],
-                $lte: end.toISOString().split("T")[0],
-            }
-        }
+        // Use string YYYY-MM-DD for range comparison after we compute onlyDate
+        const startStr = start.toISOString().split("T")[0];
+        const endStr = end.toISOString().split("T")[0];
 
         const bookings = await bookingModel.aggregate([
-            {
-                $match: match,
-            },
-            {
-                $group: {
-                    _id: "$booking_checkin_date_time",
-                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } },
-                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } },
-                    activeHotelIds: { $addToSet: "$booking_hotel_id" },
-                },
-            },
+            { $match: baseMatch },
+
+            // Convert datetime string to Date then to YYYY-MM-DD string
             {
                 $addFields: {
-                    activeHotelCount: { $size: "$activeHotelIds" },
-                },
+                    onlyDate: {
+                        $dateToString: {
+                            format: "%Y-%m-%d",
+                            // If your field is already a date type you can omit $toDate
+                            date: { $toDate: "$booking_checkin_date_time" }
+                        }
+                    }
+                }
             },
+
+            // Filter by onlyDate range (works with YYYY-MM-DD strings)
+            {
+                $match: {
+                    onlyDate: { $gte: startStr, $lte: endStr }
+                }
+            },
+
+            // Group by onlyDate (NOT raw datetime)
+            {
+                $group: {
+                    _id: "$onlyDate",
+                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } },
+                    activeHotelIds: { $addToSet: "$booking_hotel_id" }
+                }
+            },
+
+            {
+                $addFields: {
+                    activeHotelCount: { $size: "$activeHotelIds" }
+                }
+            },
+
             {
                 $project: {
                     _id: 1,
                     totalGuests: 1,
                     totalAmount: 1,
-                    activeHotelCount: 1,
-                },
+                    activeHotelCount: 1
+                }
             },
+
+            // optional: sort by date ascending
+            { $sort: { _id: 1 } }
         ]);
 
-        console.log(bookings)
-
-        // Map dates to results, fill missing dates with 0
+        // Map dates to results, match by exact YYYY-MM-DD (no split)
         const fullResult = dateArray.map(date => {
-            const booking = bookings.find(b => b._id.split(" ")[0] === date);
+            const booking = bookings.find(b => b._id === date);
             return {
                 date,
                 totalGuests: booking ? booking.totalGuests : 0,
                 totalAmount: booking ? booking.totalAmount : 0,
-                activeHotelCount: booking ? booking.activeHotelCount : 0,
+                activeHotelCount: booking ? booking.activeHotelCount : 0
             };
         });
 
-        // Apply pagination
+        // Pagination
         const paginatedResult = fullResult.slice(skip, skip + limit);
 
         return res.status(200).json({
             total: fullResult.length,
             page,
             limit,
-            data: paginatedResult,
+            data: paginatedResult
         });
-
     } catch (error) {
         console.error(error);
         return res.status(500).json({ success: false, err: "Something went wrong" });

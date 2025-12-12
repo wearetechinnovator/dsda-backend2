@@ -125,7 +125,7 @@ const addBooking = async (req, res) => {
                 booking_details_room_no: guest.roomNumber,
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
                 booking_details_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
-                booking_details_charge_amount_for_this_guest: getSiteSetting.charges_per_tourist || 0,
+                booking_details_charge_amount_for_this_guest: (parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges) ? getSiteSetting.charges_per_tourist : 0),
                 booking_details_guest_dob: guest.dob,
                 booking_details_guest_photo: photoPath
             });
@@ -280,6 +280,7 @@ const getBooking = async (req, res) => {
 
             return res.status(200).json(data);
         }
+
 
 
         const query = { IsDel: trash ? "1" : "0" };
@@ -627,9 +628,15 @@ const getStat = async (req, res) => {
 
 // FOR ALL HOTEL
 const getTotalStatsforAdmin = async (req, res) => {
+    const { token } = req.body;
+
     try {
         // Get Setting from Admin //Service 1
-        const getAdminSetting = await fetch(process.env.MASTER_API + "/site-setting/get", { method: 'post' })
+        const getAdminSetting = await fetch(process.env.MASTER_API + "/site-setting/get", {
+            method: 'POST',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token })
+        })
         const { age_for_charges } = await getAdminSetting.json();
 
         // Get today's start and end timestamps
@@ -647,14 +654,25 @@ const getTotalStatsforAdmin = async (req, res) => {
             totalChild, totalAdult, todayAdult
         ] = await Promise.all([
             // Total Active Hotels;
-            await bookingModel.countDocuments({
-                IsDel: '0',
-                booking_status: '0',
-                booking_checkin_date_time: {
-                    $gte: startOfDay.toISOString(),
-                    $lte: endOfDay.toISOString()
-                }
-            }),
+            await bookingModel.aggregate([
+                {
+                    $match: {
+                        IsDel: "0",
+                        booking_checkin_date_time: {
+                            $gte: startOfDay.toISOString(),
+                            $lte: endOfDay.toISOString(),
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: "$booking_hotel_id",
+                    },
+                },
+                {
+                    $count: "uniqueHotelCount",
+                },
+            ]),
 
             // Total Occupied Beds;
             await bookingDetailsModel.countDocuments({
@@ -712,17 +730,17 @@ const getTotalStatsforAdmin = async (req, res) => {
 
             // Till Today Male
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: "male", IsDel: "0"
+                booking_details_guest_gender: "Male", IsDel: "0"
             }),
 
             // Till Today Female
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: "female", IsDel: "0"
+                booking_details_guest_gender: "Female", IsDel: "0"
             }),
 
             // Till Today Other Gender
             await bookingDetailsModel.countDocuments({
-                booking_details_guest_gender: { $nin: ["male", "female"] },
+                booking_details_guest_gender: { $nin: ["Male", "Female"] },
                 IsDel: "0",
             }),
 
@@ -763,33 +781,39 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Child
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                createdAt: { $gte: startOfDay, $lte: endOfDay },
-                $expr: { $lt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+                booking_details_checkin_date_time: {
+                    $gte: startOfDay.toISOString(),
+                    $lte: endOfDay.toISOString(),
+                },
+                $expr: { $lte: [{ $toDouble: "$booking_details_guest_age" }, age_for_charges] }
             }),
 
             // Total Child
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                $expr: { $lt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+                $expr: { $lte: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
             }),
 
             // Total Adult
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                $expr: { $gte: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+                $expr: { $gt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
             }),
 
             // Today Adult
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                createdAt: { $gte: startOfDay, $lte: endOfDay },
-                $expr: { $gte: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
+                booking_details_checkin_date_time: {
+                    $gte: startOfDay.toISOString(),
+                    $lte: endOfDay.toISOString(),
+                },
+                $expr: { $gt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
             })
         ])
 
 
         return res.status(200).json({
-            active_hotel: todayActiveHotel,
+            active_hotel: todayActiveHotel[0]?.uniqueHotelCount || 0,
             total_occupied: totalOccupied,
             today_footfall: todayFootFall[0]?.totalFootFall || 0,
             total_footfall: totalFootFall[0]?.totalFootFall || 0,
@@ -870,20 +894,26 @@ const touristFootfalDayWise = async (req, res) => {
     const page = Number(req.body?.page) || 1;
     const search = req.body?.search?.trim() || "";
     const skip = (page - 1) * limit;
-    const { hotelId, startDate, endDate, zone, sector, block, district, policeStation } = req.body;
+    const { hotelId, startDate, endDate, zone, sector, block, district, policeStation, token } = req.body;
 
     try {
         const startDateTime = `${startDate} 00:00:00`;
         const endDateTime = `${endDate} 23:59:59`;
 
         // Get Setting;
-        const getAdminSetting = await fetch(`${process.env.MASTER_API}/site-setting/get`, { method: 'post' });
+        const getAdminSetting = await fetch(`${process.env.MASTER_API}/site-setting/get`, {
+            method: 'POST',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                hotelToken: token
+            })
+        });
         const { age_for_charges } = await getAdminSetting.json();
         const adultAge = parseFloat(age_for_charges);
 
         let matches = { IsDel: "0" };
         if (hotelId) {
-            matches.booking_details_hotel_id = hotelId;
+            matches.booking_details_hotel_id = new mongoose.Types.ObjectId(String(hotelId));
         }
         if (startDate && endDate) {
             matches.booking_details_checkin_date_time = {
@@ -891,26 +921,30 @@ const touristFootfalDayWise = async (req, res) => {
                 $lte: endDateTime
             }
         }
-        if (zone || sector || district || policeStation) {
-            let ids = [];
+
+        if (zone || sector || block || district || policeStation) {
+            const hotelFilter = {
+                zone: zone || undefined,
+                sector: sector || undefined,
+                block: block || undefined,
+                policeStation: policeStation || undefined,
+                district: district || undefined,
+                limit: 900000000,
+                hotelToken: token
+            };
+
             const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    zone, sector, block, policeStation, district,
-                    limit: 5000000
-                })
+                body: JSON.stringify(hotelFilter)
             });
+
             const hotelList = await hotelListReq.json();
-            hotelList.data?.forEach(h => {
-                ids.push(h._id);
-            });
+            const ids = hotelList.data?.map(h => new mongoose.Types.ObjectId(String(h._id))) || [];
 
-            matches.booking_details_hotel_id = {
-                $in: ids
-            }
-
+            matches.booking_details_hotel_id = { $in: ids };
         }
+
 
         const guestStats = await bookingDetailsModel.aggregate([
             { $match: matches },
@@ -920,13 +954,12 @@ const touristFootfalDayWise = async (req, res) => {
                     totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "male"] }, 1, 0] } },
                     totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "female"] }, 1, 0] } },
                     totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "male"] }, { $ne: ["$booking_details_guest_gender", "female"] }] }, 1, 0] } },
-                    totalAdult: { $sum: { $cond: [{ $gte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
-                    totalChild: { $sum: { $cond: [{ $lt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
+                    totalAdult: { $sum: { $cond: [{ $gt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
+                    totalChild: { $sum: { $cond: [{ $lte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
                     totalForeigner: { $sum: { $cond: [{ $eq: ["$booking_details_guest_nationality", "foreign"] }, 1, 0] } },
                     totalIndian: { $sum: { $cond: [{ $in: ["$booking_details_guest_nationality", ["india", ""]] }, 1, 0] } },
                     totalFootFall: { $sum: { $cond: [{ $eq: ["$IsDel", "0"] }, 1, 0] } },
                     totalAmenitiesCharges: { $sum: { $cond: [{ $eq: ["$IsDel", "0"] }, { $toDouble: "$booking_details_charge_amount_for_this_guest" }, 0] } }
-
                 }
             },
             { $skip: skip },
@@ -954,9 +987,10 @@ const touristFootfalDayWise = async (req, res) => {
                 const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: s.hotelId })
+                    body: JSON.stringify({ id: s.hotelId, hotelToken: token })
                 });
                 const hotelList = await hotelListReq.json();
+
                 if (hotelListReq.status === 200) {
                     s.hotel_details = hotelList; // assign to the object, not array
                 } else {
@@ -966,7 +1000,7 @@ const touristFootfalDayWise = async (req, res) => {
         );
 
         const totalCountAgg = await bookingDetailsModel.aggregate([
-            { $match: { IsDel: "0" } },
+            { $match: matches },
             { $group: { _id: "$booking_details_hotel_id" } },
             { $count: "total" }
         ]);
@@ -1192,6 +1226,8 @@ const getBookingSummaryByDateRange = async (req, res) => {
             },
         ]);
 
+        console.log(bookings)
+
         // Map dates to results, fill missing dates with 0
         const fullResult = dateArray.map(date => {
             const booking = bookings.find(b => b._id.split(" ")[0] === date);
@@ -1347,7 +1383,7 @@ const autoChekout = async (req, res) => {
         const checkoutBookingDetails = await bookingDetailsModel.updateMany(
             {
                 booking_details_status: "0",             // active
-                booking_details_checkout_date_time: { $lt: nowIST }
+                booking_details_checkout_date_time: { $lt: nowIST, $nin: ["", null] }
             },
             {
                 $set: {
@@ -1361,7 +1397,7 @@ const autoChekout = async (req, res) => {
         const checkoutBooking = await bookingModel.updateMany(
             {
                 booking_status: "0",                     // active
-                booking_checkout_date_time: { $lt: nowIST }
+                booking_checkout_date_time: { $lt: nowIST, $nin: ["", null] }
             },
             {
                 $set: {

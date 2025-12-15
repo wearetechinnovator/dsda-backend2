@@ -380,24 +380,30 @@ const deleteBooking = async (req, res) => {
     }
 
     try {
-        const bookingResult = await bookingModel.deleteOne({ _id: new mongoose.Types.ObjectId(String(bookingId)) });
+        // Soft delete booking
+        const bookingResult = await bookingModel.updateOne(
+            { _id: new mongoose.Types.ObjectId(String(bookingId)) },
+            { $set: { IsDel: 2 } }
+        );
 
-        if (bookingResult.deletedCount === 0) {
+        if (bookingResult.matchedCount === 0) {
             return res.status(404).json({ err: "Booking not found" });
         }
 
-        await bookingDetailsModel.deleteMany({
-            booking_details_booking_id: new mongoose.Types.ObjectId(String(bookingId))
-        });
+        // Soft delete booking details (optional but recommended)
+        await bookingDetailsModel.updateMany(
+            { booking_details_booking_id: new mongoose.Types.ObjectId(String(bookingId)) },
+            { $set: { IsDel: 2 } }
+        );
 
-
-        return res.status(200).json({ msg: "Booking Delete Successfully" });
+        return res.status(200).json({ msg: "Booking deleted successfully" });
 
     } catch (error) {
         console.error("Delete booking error:", error);
         return res.status(500).json({ err: "Something went wrong" });
     }
 };
+
 
 
 // ::::::::::::::::::: [GET HEAD OF BOOKING FROM BOOKING MODEL] ::::::::::::::::

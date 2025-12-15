@@ -12,7 +12,7 @@ const https = require('https')
 const addBooking = async (req, res) => {
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
-        guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck,
+        guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck, hotelName
     } = req.body;
 
     // ======================= [Mobile Number Exsistance checking] ====================;
@@ -29,7 +29,6 @@ const addBooking = async (req, res) => {
                 return res.status(200).json({ exist: false })
             }
         } catch (error) {
-             
             return res.status(500).json({ err: "Something went wrong" });
         }
     }
@@ -52,7 +51,7 @@ const addBooking = async (req, res) => {
             }
         }
     }
-    // =====================================[ All Validation Close here ]===================================
+    // ============================[ All Validation Close here ]========================
 
     try {
         let getSiteSetting;
@@ -126,12 +125,12 @@ const addBooking = async (req, res) => {
                 booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
                 booking_details_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
                 booking_details_charge_amount_for_this_guest: (parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges) ? getSiteSetting.charges_per_tourist : 0),
+                booking_details_charge_applicable: (parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges) ? "1" : "0"),
                 booking_details_guest_dob: guest.dob,
                 booking_details_guest_photo: photoPath
             });
         }
 
-        // ⬇️ Insert All Records At Once
         await bookingDetailsModel.insertMany(allGuestsToInsert);
 
 
@@ -177,12 +176,40 @@ const addBooking = async (req, res) => {
             templateid: templateid.trim(),
         };
 
+
+
+
         const body = new URLSearchParams(data);
         const agent = new https.Agent({ rejectUnauthorized: false });
         const url = "https://msdgweb.mgov.gov.in/esms/sendsmsrequestDLT";
-        const msgRes = await fetch(url, {
+        await fetch(url, {
             method: "POST",
             body: body,
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            agent: agent
+        });
+
+
+
+        const message2 = `You are successfully checked in ${hotelName} from ${checkInDate} to ${checkoutDate} and amount of Rs. ${billAmount} received for ${NumberOfGuest} Person -Digha Sankarpur Dev Authority`; // message content
+        const templateid2 = "1407176303661507970"; // template id
+        // Prepare data
+        const data2 = {
+            username: username.trim(),
+            password: encryptedPassword.trim(),
+            senderid: senderid.trim(),
+            content: message2.trim(),
+            smsservicetype: "singlemsg",
+            mobileno: mobileno.trim(),
+            key: key.trim(),
+            templateid: templateid2.trim(),
+        };
+        const body2 = new URLSearchParams(data2);
+        await fetch(url, {
+            method: "POST",
+            body: body2,
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
             },
@@ -192,7 +219,7 @@ const addBooking = async (req, res) => {
         return res.status(200).json(newBooking);
 
     } catch (error) {
-         
+
         return res.status(500).json({ err: "Something went wrong" });
     }
 
@@ -335,10 +362,42 @@ const getBooking = async (req, res) => {
         return res.status(200).json(result);
 
     } catch (error) {
-        
+
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
+
+
+const deleteBooking = async (req, res) => {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+        return res.status(400).json({ err: "Please provide booking id" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+        return res.status(400).json({ err: "Invalid booking id" });
+    }
+
+    try {
+        const bookingResult = await bookingModel.deleteOne({ _id: new mongoose.Types.ObjectId(String(bookingId)) });
+
+        if (bookingResult.deletedCount === 0) {
+            return res.status(404).json({ err: "Booking not found" });
+        }
+
+        await bookingDetailsModel.deleteMany({
+            booking_details_booking_id: new mongoose.Types.ObjectId(String(bookingId))
+        });
+
+
+        return res.status(200).json({ msg: "Booking Delete Successfully" });
+
+    } catch (error) {
+        console.error("Delete booking error:", error);
+        return res.status(500).json({ err: "Something went wrong" });
+    }
+};
 
 
 // ::::::::::::::::::: [GET HEAD OF BOOKING FROM BOOKING MODEL] ::::::::::::::::
@@ -352,7 +411,6 @@ const getHeadOfBooking = async (req, res) => {
     const month = req.body?.month;
     const year = req.body?.year;
     const hotelId = req.body?.hotel_id;
-
 
 
     try {
@@ -444,7 +502,7 @@ const getHeadOfBooking = async (req, res) => {
         return res.status(200).json(result);
 
     } catch (error) {
-        
+
         return res.status(500).json({ err: "Something went wrong" });
     }
 };
@@ -618,7 +676,7 @@ const getStat = async (req, res) => {
         })
 
     } catch (error) {
-        
+
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
@@ -829,7 +887,7 @@ const getTotalStatsforAdmin = async (req, res) => {
         })
 
     } catch (error) {
-        
+
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
@@ -1106,7 +1164,7 @@ const getTotalAmountHotelWise = async (req, res) => {
         res.status(200).json(guestStats);
 
     } catch (error) {
-         
+
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1159,7 +1217,7 @@ const getTotalAmountHotelId = async (req, res) => {
         res.status(200).json(guestStats);
 
     } catch (error) {
-         
+
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1190,7 +1248,7 @@ const getBookingSummaryByDateRange = async (req, res) => {
             IsDel: "0",
             ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) } : {})
         };
-        
+
 
         // Use string YYYY-MM-DD for range comparison after we compute onlyDate
         const startStr = start.toISOString().split("T")[0];
@@ -1269,7 +1327,7 @@ const getBookingSummaryByDateRange = async (req, res) => {
             data: paginatedResult
         });
     } catch (error) {
-        
+
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1345,7 +1403,7 @@ const getHotelWithEnrolledData = async (req, res) => {
         });
 
     } catch (error) {
-        
+
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1370,7 +1428,7 @@ const getPublicBookingDetails = async (req, res) => {
         return res.status(200).json(bookingData);
 
     } catch (error) {
-        
+
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 }
@@ -1443,6 +1501,7 @@ const autoChekout = async (req, res) => {
 module.exports = {
     addBooking,
     getBooking,
+    deleteBooking,
     getHeadOfBooking,
     checkOut,
     getStat,

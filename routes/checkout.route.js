@@ -24,4 +24,5 @@ router
     .route('/auto-checkout')
     .post(autoChekout);
 
+
 module.exports = router;

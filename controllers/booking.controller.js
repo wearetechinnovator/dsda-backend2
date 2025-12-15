@@ -383,7 +383,7 @@ const deleteBooking = async (req, res) => {
         // Soft delete booking
         const bookingResult = await bookingModel.updateOne(
             { _id: new mongoose.Types.ObjectId(String(bookingId)) },
-            { $set: { IsDel: 2 } }
+            { $set: { IsDel: '2' } }
         );
 
         if (bookingResult.matchedCount === 0) {
@@ -393,7 +393,7 @@ const deleteBooking = async (req, res) => {
         // Soft delete booking details (optional but recommended)
         await bookingDetailsModel.updateMany(
             { booking_details_booking_id: new mongoose.Types.ObjectId(String(bookingId)) },
-            { $set: { IsDel: 2 } }
+            { $set: { IsDel: '2' } }
         );
 
         return res.status(200).json({ msg: "Booking deleted successfully" });

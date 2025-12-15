@@ -21,7 +21,6 @@ const middleware = async (req, res, next) => {
     next();
 
   } catch (err) {
-    console.log(err)
     return res.status(401).json({ message: "Invalid or expired token" });
   }
   

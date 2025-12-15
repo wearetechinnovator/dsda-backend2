@@ -29,7 +29,7 @@ const addBooking = async (req, res) => {
                 return res.status(200).json({ exist: false })
             }
         } catch (error) {
-            console.log(error);
+             
             return res.status(500).json({ err: "Something went wrong" });
         }
     }
@@ -188,13 +188,11 @@ const addBooking = async (req, res) => {
             },
             agent: agent
         });
-        console.log(body)
-        console.log(msgRes);
 
         return res.status(200).json(newBooking);
 
     } catch (error) {
-        console.log(error);
+         
         return res.status(500).json({ err: "Something went wrong" });
     }
 
@@ -337,7 +335,7 @@ const getBooking = async (req, res) => {
         return res.status(200).json(result);
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
@@ -446,7 +444,7 @@ const getHeadOfBooking = async (req, res) => {
         return res.status(200).json(result);
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ err: "Something went wrong" });
     }
 };
@@ -620,7 +618,7 @@ const getStat = async (req, res) => {
         })
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
@@ -831,7 +829,7 @@ const getTotalStatsforAdmin = async (req, res) => {
         })
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ err: "Something went wrong" });
     }
 }
@@ -1108,7 +1106,7 @@ const getTotalAmountHotelWise = async (req, res) => {
         res.status(200).json(guestStats);
 
     } catch (error) {
-        console.log(error);
+         
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1161,7 +1159,7 @@ const getTotalAmountHotelId = async (req, res) => {
         res.status(200).json(guestStats);
 
     } catch (error) {
-        console.log(error);
+         
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1271,7 +1269,7 @@ const getBookingSummaryByDateRange = async (req, res) => {
             data: paginatedResult
         });
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1347,7 +1345,7 @@ const getHotelWithEnrolledData = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };
@@ -1372,7 +1370,7 @@ const getPublicBookingDetails = async (req, res) => {
         return res.status(200).json(bookingData);
 
     } catch (error) {
-        console.error(error);
+        
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 }

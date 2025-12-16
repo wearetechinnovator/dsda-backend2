@@ -702,11 +702,13 @@ const getTotalStatsforAdmin = async (req, res) => {
         const { age_for_charges } = await getAdminSetting.json();
 
         // Get today's start and end timestamps
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
+        // const startOfDay = new Date();
+        // startOfDay.setHours(0, 0, 0, 0);
 
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
+        // const endOfDay = new Date();
+        // endOfDay.setHours(23, 59, 59, 999);
+
+        const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
 
 
         const [
@@ -718,12 +720,16 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Total Active Hotels;
             await bookingModel.aggregate([
                 {
+                    // $match: {
+                    //     IsDel: "0",
+                    //     booking_checkin_date_time: {
+                    //         $gte: startOfDay.toISOString(),
+                    //         $lte: endOfDay.toISOString(),
+                    //     },
+                    // },
                     $match: {
                         IsDel: "0",
-                        booking_checkin_date_time: {
-                            $gte: startOfDay.toISOString(),
-                            $lte: endOfDay.toISOString(),
-                        },
+                        booking_checkin_date_time: { $regex: `^${todayStr}` },
                     },
                 },
                 {
@@ -744,12 +750,16 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Footfalls;
             await bookingModel.aggregate([
                 {
+                    // $match: {
+                    //     IsDel: "0",
+                    //     booking_checkin_date_time: {
+                    //         $gte: startOfDay.toISOString(),
+                    //         $lte: endOfDay.toISOString(),
+                    //     },
+                    // },
                     $match: {
                         IsDel: "0",
-                        booking_checkin_date_time: {
-                            $gte: startOfDay.toISOString(),
-                            $lte: endOfDay.toISOString(),
-                        },
+                        booking_checkin_date_time: { $regex: `^${todayStr}` },
                     },
                 },
                 {
@@ -809,11 +819,15 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Aminity Charge
             await bookingModel.aggregate([
                 {
+                    // $match: {
+                    //     booking_checkin_date_time: {
+                    //         $gte: startOfDay.toISOString(),
+                    //         $lte: endOfDay.toISOString(),
+                    //     },
+                    //     IsDel: "0",
+                    // },
                     $match: {
-                        booking_checkin_date_time: {
-                            $gte: startOfDay.toISOString(),
-                            $lte: endOfDay.toISOString(),
-                        },
+                        booking_checkin_date_time: { $regex: `^${todayStr}` },
                         IsDel: "0",
                     },
                 },
@@ -843,10 +857,11 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Child
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                booking_details_checkin_date_time: {
-                    $gte: startOfDay.toISOString(),
-                    $lte: endOfDay.toISOString(),
-                },
+                // booking_details_checkin_date_time: {
+                //     $gte: startOfDay.toISOString(),
+                //     $lte: endOfDay.toISOString(),
+                // },
+                booking_details_checkin_date_time: { $regex: `^${todayStr}` },
                 $expr: { $lte: [{ $toDouble: "$booking_details_guest_age" }, age_for_charges] }
             }),
 
@@ -865,10 +880,11 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Adult
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                booking_details_checkin_date_time: {
-                    $gte: startOfDay.toISOString(),
-                    $lte: endOfDay.toISOString(),
-                },
+                // booking_details_checkin_date_time: {
+                //     $gte: startOfDay.toISOString(),
+                //     $lte: endOfDay.toISOString(),
+                // },
+                booking_details_checkin_date_time: { $regex: `^${todayStr}` },
                 $expr: { $gt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
             })
         ])

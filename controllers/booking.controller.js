@@ -1013,9 +1013,9 @@ const touristFootfalDayWise = async (req, res) => {
             {
                 $group: {
                     _id: "$booking_details_hotel_id", // Group by hotel ID
-                    totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "male"] }, 1, 0] } },
-                    totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "female"] }, 1, 0] } },
-                    totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "male"] }, { $ne: ["$booking_details_guest_gender", "female"] }] }, 1, 0] } },
+                    totalMale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Male"] }, 1, 0] } },
+                    totalFemale: { $sum: { $cond: [{ $eq: ["$booking_details_guest_gender", "Female"] }, 1, 0] } },
+                    totalOtherGender: { $sum: { $cond: [{ $and: [{ $ne: ["$booking_details_guest_gender", "Male"] }, { $ne: ["$booking_details_guest_gender", "Female"] }] }, 1, 0] } },
                     totalAdult: { $sum: { $cond: [{ $gt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
                     totalChild: { $sum: { $cond: [{ $lte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] }, 1, 0] } },
                     totalForeigner: { $sum: { $cond: [{ $eq: ["$booking_details_guest_nationality", "foreign"] }, 1, 0] } },

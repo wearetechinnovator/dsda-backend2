@@ -77,11 +77,11 @@ const addBooking = async (req, res) => {
         // Add booking
         const newBooking = await bookingModel.create({
             booking_hotel_id: hotelId,
-            booking_head_guest_name: guestList[0].guestName,
+            booking_head_guest_name: guestList[0].guestName.trim(),
             booking_head_guest_phone: guestList[0].mobileNumber,
-            booking_number_of_guest: NumberOfGuest,
-            booking_checkin_date_time: `${checkInDate} ${checkInTime}`,
-            booking_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
+            booking_number_of_guest: NumberOfGuest.trim(),
+            booking_checkin_date_time: `${checkInDate.trim()} ${checkInTime.trim()}`,
+            booking_checkout_date_time: `${checkoutDate.trim()} ${checkoutTime.trim()}`,
             booking_bill_amount_per_guest: getSiteSetting.charges_per_tourist || 0,
             booking_bill_amount: billAmount,
             booking_verified_by: verificationBy === "manager" ? "0" : "1",
@@ -109,21 +109,21 @@ const addBooking = async (req, res) => {
                 booking_details_is_head_guest: i === 0 ? '1' : '0',
                 booking_details_booking_id: newBooking._id,
                 booking_details_hotel_id: hotelId,
-                booking_details_guest_name: guest.guestName,
-                booking_details_guest_gender: guest.gender,
-                booking_details_guest_age: guest.age,
-                booking_details_guest_nationality: guest.nationality,
-                booking_details_country: guest.nationality === "india" ? "India" : guest.country,
-                booking_details_guest_address: guest.address,
+                booking_details_guest_name: guest.guestName.trim(),
+                booking_details_guest_gender: guest.gender.trim(),
+                booking_details_guest_age: guest.age.trim(),
+                booking_details_guest_nationality: guest.nationality.trim(),
+                booking_details_country: guest.nationality.trim() === "india" ? "India" : guest.country.trim(),
+                booking_details_guest_address: guest.address.trim(),
                 booking_details_district: guest.district,
                 booking_details_state: guest.state,
-                booking_details_guest_id_number: guest.idNumber,
+                booking_details_guest_id_number: guest.idNumber.trim(),
                 booking_details_guest_id_type: guest.idType,
                 booking_details_guest_id_proof: uploadPath,
-                booking_details_guest_phone: guest.mobileNumber,
-                booking_details_room_no: guest.roomNumber,
-                booking_details_checkin_date_time: `${checkInDate} ${checkInTime}`,
-                booking_details_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
+                booking_details_guest_phone: guest.mobileNumber.trim(),
+                booking_details_room_no: guest.roomNumber.trim(),
+                booking_details_checkin_date_time: `${checkInDate.trim()} ${checkInTime.trim()}`,
+                booking_details_checkout_date_time: `${checkoutDate.trim()} ${checkoutTime.trim()}`,
                 booking_details_charge_amount_for_this_guest: (parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges) ? getSiteSetting.charges_per_tourist : 0),
                 booking_details_charge_applicable: (parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges) ? "1" : "0"),
                 booking_details_guest_dob: guest.dob,
@@ -219,6 +219,7 @@ const addBooking = async (req, res) => {
         return res.status(200).json(newBooking);
 
     } catch (error) {
+        console.log(error)
         return res.status(500).json({ err: "Something went wrong" });
     }
 
@@ -700,13 +701,6 @@ const getTotalStatsforAdmin = async (req, res) => {
         })
         const { age_for_charges } = await getAdminSetting.json();
 
-        // Get today's start and end timestamps
-        // const startOfDay = new Date();
-        // startOfDay.setHours(0, 0, 0, 0);
-
-        // const endOfDay = new Date();
-        // endOfDay.setHours(23, 59, 59, 999);
-
         const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
 
 
@@ -719,13 +713,6 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Total Active Hotels;
             await bookingModel.aggregate([
                 {
-                    // $match: {
-                    //     IsDel: "0",
-                    //     booking_checkin_date_time: {
-                    //         $gte: startOfDay.toISOString(),
-                    //         $lte: endOfDay.toISOString(),
-                    //     },
-                    // },
                     $match: {
                         IsDel: "0",
                         booking_checkin_date_time: { $regex: `^${todayStr}` },
@@ -749,13 +736,6 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Footfalls;
             await bookingModel.aggregate([
                 {
-                    // $match: {
-                    //     IsDel: "0",
-                    //     booking_checkin_date_time: {
-                    //         $gte: startOfDay.toISOString(),
-                    //         $lte: endOfDay.toISOString(),
-                    //     },
-                    // },
                     $match: {
                         IsDel: "0",
                         booking_checkin_date_time: { $regex: `^${todayStr}` },
@@ -818,13 +798,6 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Aminity Charge
             await bookingModel.aggregate([
                 {
-                    // $match: {
-                    //     booking_checkin_date_time: {
-                    //         $gte: startOfDay.toISOString(),
-                    //         $lte: endOfDay.toISOString(),
-                    //     },
-                    //     IsDel: "0",
-                    // },
                     $match: {
                         booking_checkin_date_time: { $regex: `^${todayStr}` },
                         IsDel: "0",
@@ -856,10 +829,6 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Child
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                // booking_details_checkin_date_time: {
-                //     $gte: startOfDay.toISOString(),
-                //     $lte: endOfDay.toISOString(),
-                // },
                 booking_details_checkin_date_time: { $regex: `^${todayStr}` },
                 $expr: { $lte: [{ $toDouble: "$booking_details_guest_age" }, age_for_charges] }
             }),
@@ -879,10 +848,6 @@ const getTotalStatsforAdmin = async (req, res) => {
             // Today Adult
             await bookingDetailsModel.countDocuments({
                 IsDel: "0",
-                // booking_details_checkin_date_time: {
-                //     $gte: startOfDay.toISOString(),
-                //     $lte: endOfDay.toISOString(),
-                // },
                 booking_details_checkin_date_time: { $regex: `^${todayStr}` },
                 $expr: { $gt: [{ $toDouble: "$booking_details_guest_age" }, parseFloat(age_for_charges)] }
             })

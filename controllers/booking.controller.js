@@ -193,8 +193,8 @@ const addBooking = async (req, res) => {
 
 
 
-        const message2 = `You are successfully checked in ${hotelName} from ${checkInDate} to ${checkoutDate} and amount of Rs. ${billAmount} received for ${NumberOfGuest} Person -Digha Sankarpur Dev Authority`; // message content
-        const templateid2 = "1407176303661507970"; // template id
+        const message2 = `You are successfully checked in ${hotelName} from ${checkInDate} to ${checkoutDate} and amount of Rs. ${billAmount} received for ${NumberOfGuest} Person -Digha Sankarpur Dev Authority`;
+        const templateid2 = "1407176554324712567"; // template id
         // Prepare data
         const data2 = {
             username: username.trim(),
@@ -219,7 +219,6 @@ const addBooking = async (req, res) => {
         return res.status(200).json(newBooking);
 
     } catch (error) {
-
         return res.status(500).json({ err: "Something went wrong" });
     }
 

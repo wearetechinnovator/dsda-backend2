@@ -42,7 +42,7 @@ app.get("/", (req, res) => {
 app.use("/booking/api/v1", router);
 
 /*
-app.get("/test-db", async (req, res) => {
+app.get("/clear-junk", async (req, res) => {
     try {
         const start = new Date("2025-12-17T00:00:00.000Z");
         const end = new Date("2025-12-18T00:00:00.000Z");
@@ -76,8 +76,58 @@ app.get("/test-db", async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+*/
+
+
+/*
+app.get("/solve-checkout", async (req, res) => {
+    try {
+        const start = new Date("2025-12-17T00:00:00.000Z");
+        const end = new Date("2025-12-18T00:00:00.000Z");
+
+        // 1️⃣ Get booking IDs from bookingDetails
+        const bookedDetails = await bookingModel.find(
+            {
+                booking_status: "1"
+            },
+            { _id: 1, booking_head_guest_name: 1 } // fetch only booking_id
+        );
+
+        // 2️⃣ Convert to array of ObjectIds
+        const bookedIds = bookedDetails.map(item => item._id);
+
+        // 3️⃣ Fetch bookings NOT in bookedIds
+        const test = await bookingDetailsModel.find({
+            booking_details_status: "0",
+            booking_details_booking_id: { $in: bookedIds }
+        }).populate("booking_details_booking_id")
+
+        // let count = 0;
+        // for (let b of test) {
+        //     count++;
+        //     let result =  await bookingDetailsModel.updateOne({
+        //         IsDel: "0",
+        //         _id: { $in: b._id }
+        //     }, { $set: { booking_details_status: "1", booking_details_checkout_date_time: b.booking_details_booking_id.booking_checkout_date_time } })
+        //     console.log(result.modifiedCount);
+        // }
+        // let a = await bookingDetailsModel.updateMany({
+        //     IsDel: "0",
+        //     booking_details_booking_id: { $in: bookedIds }
+        // }, {$set: {booking_details_status: "1"}})
+
+        // console.log(a)
+        res.json(test);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 */
+
+
 
 
 

@@ -593,7 +593,7 @@ const getStat = async (req, res) => {
 
     try {
         const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
-   
+
 
         // Total Occupied bed
         const occu = await bookingDetailsModel.find({
@@ -640,24 +640,24 @@ const getStat = async (req, res) => {
         ]);
 
         const pipeline = [
-  {
-    $match: {
-      booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
-      booking_checkin_date_time: { $regex: `^${todayStr}` },
-      IsDel: "0",
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      totalFootFall: {
-        $sum: { $toDouble: "$booking_number_of_guest" }
-      },
-    },
-  },
-];
+            {
+                $match: {
+                    booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
+                    booking_checkin_date_time: { $regex: `^${todayStr}` },
+                    IsDel: "0",
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalFootFall: {
+                        $sum: { $toDouble: "$booking_number_of_guest" }
+                    },
+                },
+            },
+        ];
 
-// log the query
+        // log the query
 
 
 
@@ -1089,7 +1089,7 @@ const updateCheckoutDateTime = async (req, res) => {
         }
 
 
-        const updatedBookingDetails = await bookingDetailsModel.updateOne(
+        const updatedBookingDetails = await bookingDetailsModel.updateMany(
             {
                 booking_details_booking_id: bookingId,
                 booking_details_status: { $ne: "1" }  // ✅ Correct $ne usage

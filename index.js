@@ -6,6 +6,8 @@ const connection = require("./db/connection");
 const cors = require("cors");
 const compression = require("compression");
 const router = require("./routes/index.route");
+const bookingDetailsModel = require("./models/bookingDetails.model");
+const bookingModel = require("./models/booking.model");
 
 
 // app.use(cors({
@@ -38,6 +40,44 @@ app.get("/", (req, res) => {
 
 // API
 app.use("/booking/api/v1", router);
+
+/*
+app.get("/test-db", async (req, res) => {
+    try {
+        const start = new Date("2025-12-17T00:00:00.000Z");
+        const end = new Date("2025-12-18T00:00:00.000Z");
+
+        // 1️⃣ Get booking IDs from bookingDetails
+        const bookedDetails = await bookingDetailsModel.find(
+            {
+
+            },
+            { booking_details_booking_id: 1, booking_details_guest_name: 1 } // fetch only booking_id
+        );
+
+        // 2️⃣ Convert to array of ObjectIds
+        const bookedIds = bookedDetails.map(item => item.booking_details_booking_id);
+
+        // 3️⃣ Fetch bookings NOT in bookedIds
+        const test = await bookingModel.countDocuments({
+            IsDel: "0",
+            _id: { $nin: bookedIds }
+        });
+
+        // let a= await bookingModel.deleteMany({
+        //     IsDel: "0",
+        //     _id: { $nin: bookedIds }
+        // })
+        // console.log(a)
+        res.json(test);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+*/
 
 
 

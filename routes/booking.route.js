@@ -75,4 +75,6 @@ router
     .post(middleware, getHotelWithEnrolledData);
 
 
+
+
 module.exports = router;

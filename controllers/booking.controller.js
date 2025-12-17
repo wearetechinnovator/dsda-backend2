@@ -11,7 +11,6 @@ const https = require('https')
 
 const addBooking = async (req, res) => {
 
-    return res.status(500).json({err: "Please try after some time"});
 
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
@@ -222,7 +221,6 @@ const addBooking = async (req, res) => {
         return res.status(200).json(newBooking);
 
     } catch (error) {
-        console.log(error)
         return res.status(500).json({ err: "Something went wrong" });
     }
 
@@ -595,7 +593,7 @@ const getStat = async (req, res) => {
 
     try {
         const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
-        console.log(todayStr);
+   
 
         // Total Occupied bed
         const occu = await bookingDetailsModel.find({
@@ -660,7 +658,7 @@ const getStat = async (req, res) => {
 ];
 
 // log the query
-console.log("Aggregation Pipeline:", JSON.stringify(pipeline, null, 2));
+
 
 
         // Today aminity charge;
@@ -897,7 +895,6 @@ const getTotalStatsforAdmin = async (req, res) => {
         })
 
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ err: "Something went wrong", msg: error });
     }
 }

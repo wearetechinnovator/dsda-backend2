@@ -11,7 +11,8 @@ const {
     getHotelWithEnrolledData,
     getTotalAmountHotelId,
     getPublicBookingDetails,
-    deleteBooking
+    deleteBooking,
+    getActiveBookingCountByHotel
 } = require('../controllers/booking.controller')
 const middleware = require("../middleware/middleware");
 
@@ -74,7 +75,9 @@ router
     .route("/get-hotel-enrolled-data")
     .post(middleware, getHotelWithEnrolledData);
 
-
+router
+    .route("/get-active-booking-count-by-hotel")
+    .post(middleware, getActiveBookingCountByHotel);
 
 
 module.exports = router;

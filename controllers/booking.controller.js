@@ -752,7 +752,8 @@ const getTotalStatsforAdmin = async (req, res) => {
 
             // Total Occupied Beds;
             await bookingDetailsModel.countDocuments({
-                booking_details_status: "0"
+                booking_details_status: "0",
+                IsDel: "0"
             }),
 
             // Today Footfalls;
@@ -1505,6 +1506,32 @@ const autoChekout = async (req, res) => {
 
 
 
+const getActiveBookingCountByHotel = async (req, res) => {
+  try {
+    const result = await bookingDetailsModel.aggregate([
+      {
+        $match: {
+          booking_details_status: "0",
+          IsDel: "0"
+        }
+      },
+      {
+        $group: {
+          _id: "$booking_details_hotel_id",
+          totalBookings: { $sum: 1 }
+        }
+      }
+    ]);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching booking count:", error);
+    throw error;
+  }
+};
+
+
+
 module.exports = {
     addBooking,
     getBooking,
@@ -1521,5 +1548,6 @@ module.exports = {
     getHotelWithEnrolledData,
     getTotalAmountHotelId,
     getPublicBookingDetails,
-    autoChekout
+    autoChekout,
+    getActiveBookingCountByHotel
 }

@@ -80,7 +80,7 @@ const addBooking = async (req, res) => {
             booking_hotel_id: hotelId,
             booking_head_guest_name: guestList[0].guestName,
             booking_head_guest_phone: guestList[0].mobileNumber,
-            booking_number_of_guest: NumberOfGuest.trim(),
+            booking_number_of_guest: String(NumberOfGuest).trim(),
             booking_checkin_date_time: `${checkInDate} ${checkInTime}`,
             booking_checkout_date_time: `${checkoutDate} ${checkoutTime}`,
             booking_bill_amount_per_guest: getSiteSetting.charges_per_tourist || 0,

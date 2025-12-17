@@ -22,7 +22,8 @@ const addBooking = async (req, res) => {
         try {
             const check = await bookingModel.find({
                 booking_head_guest_phone: mobileNumber,
-                booking_status: '0'
+                booking_status: '0',
+                IsDel: "0"
             });
 
             if (check.length > 0) {

@@ -75,6 +75,7 @@ const addBooking = async (req, res) => {
 
 
         // Add booking
+        console.log(typeof NumberOfGuest);
         const newBooking = await bookingModel.create({
             booking_hotel_id: hotelId,
             booking_head_guest_name: guestList[0].guestName,

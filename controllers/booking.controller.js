@@ -10,6 +10,9 @@ const https = require('https')
 
 
 const addBooking = async (req, res) => {
+
+    return res.status(500).json({err: "Please try after some time"});
+
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
         guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck, hotelName
@@ -75,7 +78,6 @@ const addBooking = async (req, res) => {
 
 
         // Add booking
-        console.log(typeof NumberOfGuest);
         const newBooking = await bookingModel.create({
             booking_hotel_id: hotelId,
             booking_head_guest_name: guestList[0].guestName,
@@ -593,7 +595,7 @@ const getStat = async (req, res) => {
 
     try {
         const todayStr = new Date().toISOString().split("T")[0]; // "2025-10-24"
-
+        console.log(todayStr);
 
         // Total Occupied bed
         const occu = await bookingDetailsModel.find({
@@ -638,6 +640,27 @@ const getStat = async (req, res) => {
                 },
             },
         ]);
+
+        const pipeline = [
+  {
+    $match: {
+      booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)),
+      booking_checkin_date_time: { $regex: `^${todayStr}` },
+      IsDel: "0",
+    },
+  },
+  {
+    $group: {
+      _id: null,
+      totalFootFall: {
+        $sum: { $toDouble: "$booking_number_of_guest" }
+      },
+    },
+  },
+];
+
+// log the query
+console.log("Aggregation Pipeline:", JSON.stringify(pipeline, null, 2));
 
 
         // Today aminity charge;

@@ -5,13 +5,11 @@ const fileUpload = require("../helper/fileUpload");
 const tripleSHA1 = require("../helper/sha1_hash");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
-const https = require('https')
+const https = require('https');
 
 
 
 const addBooking = async (req, res) => {
-
-
     const {
         mobileNumber, NumberOfGuest, checkInDate, checkInTime, verificationBy,
         guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck, hotelName
@@ -72,12 +70,11 @@ const addBooking = async (req, res) => {
 
 
         // Get Number of Guest and Total  Amount
-        let numOfGuest = guestList.filter(guest =>
-            parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges)).length;
+        let numOfGuest = guestList.filter(guest => parseInt(guest.age) > parseInt(getSiteSetting.age_for_charges)).length;
         billAmount = (getSiteSetting.charges_per_tourist || 0) * numOfGuest;
 
 
-        // Add booking
+        // Add booking         
         const newBooking = await bookingModel.create({
             booking_hotel_id: hotelId,
             booking_head_guest_name: guestList[0].guestName,
@@ -90,6 +87,8 @@ const addBooking = async (req, res) => {
             booking_verified_by: verificationBy === "manager" ? "0" : "1",
             booking_added_by: "1",
         })
+
+        if (!newBooking) return res.status(500).json({ err: "Guest Entry failed" })
 
 
         // Add booking details
@@ -134,7 +133,14 @@ const addBooking = async (req, res) => {
             });
         }
 
-        await bookingDetailsModel.insertMany(allGuestsToInsert);
+        const bookingDetailsAdd = await bookingDetailsModel.insertMany(allGuestsToInsert);
+
+        if (!bookingDetailsAdd || bookingDetailsAdd.length < 1) {
+           const del =  await bookingModel.deleteOne({ _id: newBooking._id });
+           console.log(del);
+
+            return res.status(500).json({ err: 'Guest Entry failed' })
+        }
 
 
 
@@ -178,8 +184,6 @@ const addBooking = async (req, res) => {
             key: key.trim(),
             templateid: templateid.trim(),
         };
-
-
 
 
         const body = new URLSearchParams(data);
@@ -1508,27 +1512,27 @@ const autoChekout = async (req, res) => {
 
 
 const getActiveBookingCountByHotel = async (req, res) => {
-  try {
-    const result = await bookingDetailsModel.aggregate([
-      {
-        $match: {
-          booking_details_status: "0",
-          IsDel: "0"
-        }
-      },
-      {
-        $group: {
-          _id: "$booking_details_hotel_id",
-          totalBookings: { $sum: 1 }
-        }
-      }
-    ]);
+    try {
+        const result = await bookingDetailsModel.aggregate([
+            {
+                $match: {
+                    booking_details_status: "0",
+                    IsDel: "0"
+                }
+            },
+            {
+                $group: {
+                    _id: "$booking_details_hotel_id",
+                    totalBookings: { $sum: 1 }
+                }
+            }
+        ]);
 
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error("Error fetching booking count:", error);
-    throw error;
-  }
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("Error fetching booking count:", error);
+        throw error;
+    }
 };
 
 

@@ -136,8 +136,7 @@ const addBooking = async (req, res) => {
         const bookingDetailsAdd = await bookingDetailsModel.insertMany(allGuestsToInsert);
 
         if (!bookingDetailsAdd || bookingDetailsAdd.length < 1) {
-           const del =  await bookingModel.deleteOne({ _id: newBooking._id });
-           console.log(del);
+           await bookingModel.deleteOne({ _id: newBooking._id });
 
             return res.status(500).json({ err: 'Guest Entry failed' })
         }

@@ -23,7 +23,6 @@ router.get("/upload/:filename", (req, res) => {
 
         res.sendFile(filePath, (err) => {
             if (err) {
-                console.error("File send error:", err);
                 return res.status(404).send("File not found");
             }
         });

@@ -74,6 +74,18 @@ const addBooking = async (req, res) => {
         billAmount = (getSiteSetting.charges_per_tourist || 0) * numOfGuest;
 
 
+        // Guest entry duplicate check
+        const check = await bookingModel.find({
+            booking_head_guest_phone: mobileNumber,
+            booking_status: '0',
+            IsDel: "0"
+        });
+
+        if (check.length > 0) {
+            return res.status(409).json({ err: "Guest already checked in" })
+        }
+
+
         // Add booking         
         const newBooking = await bookingModel.create({
             booking_hotel_id: hotelId,
@@ -136,7 +148,7 @@ const addBooking = async (req, res) => {
         const bookingDetailsAdd = await bookingDetailsModel.insertMany(allGuestsToInsert);
 
         if (!bookingDetailsAdd || bookingDetailsAdd.length < 1) {
-           await bookingModel.deleteOne({ _id: newBooking._id });
+            await bookingModel.deleteOne({ _id: newBooking._id });
 
             return res.status(500).json({ err: 'Guest Entry failed' })
         }

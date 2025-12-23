@@ -58,7 +58,7 @@ router
 
 router
     .route("/get-hotel-wise-total-amount")
-    .post(middleware, getTotalAmountHotelWise);
+    .post(getTotalAmountHotelWise);
 
 
 router

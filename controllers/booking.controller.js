@@ -76,7 +76,7 @@ const addBooking = async (req, res) => {
 
         // Guest entry duplicate check
         const check = await bookingModel.find({
-            booking_head_guest_phone: mobileNumber,
+            booking_head_guest_phone: guestList[0].mobileNumber,
             booking_status: '0',
             IsDel: "0"
         });

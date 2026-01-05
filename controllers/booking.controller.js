@@ -1366,13 +1366,13 @@ const getHotelWithEnrolledData = async (req, res) => {
     const limit = parseInt(req.body?.limit ?? 10);
     const page = parseInt(req.body?.page ?? 1);
     const skip = (page - 1) * limit;
-    const { startDate, endDate, hotelId } = req.body;
-
+    const { startDate, endDate, hotelId, month, year } = req.body;
+    
     try {
         // Build dynamic match filter
         const matchFilter = { IsDel: "0" };
 
-        // Add optional date filter
+        // Add date filter
         if (startDate && endDate) {
             if (startDate === endDate) {
                 matchFilter.booking_checkin_date_time = { $regex: `^${startDate}` };
@@ -1385,7 +1385,14 @@ const getHotelWithEnrolledData = async (req, res) => {
 
         }
 
-        // Add optional hotel filter
+        if (month && year) {
+            matchFilter.booking_checkin_date_time = {
+                $gte: `${year}-${month}-01`,
+                $lte: `${year}-${month}-31`
+            };
+        }
+
+        // Add hotel filter
         if (hotelId) {
             matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
         }

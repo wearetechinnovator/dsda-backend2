@@ -16,7 +16,11 @@ const addBooking = async (req, res) => {
     } = req.body;
 
     // ======================= [Mobile Number Exsistance checking] ====================;
-    if (existsCheck && mobileNumber) {
+    if (existsCheck && mobileNumber && NumberOfGuest) {
+        if (!/^[1-9]\d*$/.test(String(NumberOfGuest))) {
+            return res.status(400).json({ err: "Invalid guest number" });
+        }
+
         try {
             const check = await bookingModel.find({
                 booking_head_guest_phone: mobileNumber,
@@ -1351,7 +1355,6 @@ const getBookingSummaryByDateRange = async (req, res) => {
             data: paginatedResult
         });
     } catch (error) {
-
         return res.status(500).json({ success: false, err: "Something went wrong" });
     }
 };

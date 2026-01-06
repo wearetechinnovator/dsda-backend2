@@ -18,8 +18,18 @@ app.use(cors({
     origin: '*',
     credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// app.use(compression({
+//     level: 6,
+//     threshold: 1024,
+//     filter: (req, res) => {
+//         if (res.getHeader('Content-Type') === 'application/json') {
+//             return true;
+//         }
+//         return false;
+//     }
+// }));
+app.use(express.json({ limit: '300mb' }));
+app.use(express.urlencoded({ limit: '300mb', extended: true }));
 
 
 // test only (remove in production)

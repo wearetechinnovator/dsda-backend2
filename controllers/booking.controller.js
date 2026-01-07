@@ -921,7 +921,57 @@ const getTotalStatsforAdmin = async (req, res) => {
 }
 
 
-// Admin Tourist Data Date and Hotel wise
+// // Admin Tourist Data Date and Hotel wise
+// const touristFootfallDate = async (req, res) => {
+//     const hotelId = req.body?.id;
+//     const limit = Number(req.body?.limit) || 10;
+//     const page = Number(req.body?.page) || 1;
+//     const search = req.body?.search?.trim() || "";
+//     const startDate = req.body?.startDate;
+//     const endDate = req.body?.endDate;
+//     const skip = (page - 1) * limit;
+
+//     if (!hotelId || !startDate || !endDate) {
+//         return res.status(500).json({ err: "fill the required" })
+//     }
+
+//     try {
+
+//         const startDateTime = `${startDate} 00:00:00`;
+//         const endDateTime = `${endDate} 23:59:59`;
+
+//         const enrolledData = await bookingModel.find({
+//             booking_hotel_id: hotelId,
+//             IsDel: '0',
+//             booking_checkin_date_time: {
+//                 $gte: startDateTime,
+//                 $lte: endDateTime
+//             }
+//         })
+//             .skip(skip)
+//             .limit(limit)
+//             .sort({ _id: -1 });
+
+//         const totalCount = await bookingModel.countDocuments({
+//             booking_hotel_id: hotelId,
+//             IsDel: '0',
+//             booking_checkin_date_time: {
+//                 $gte: startDateTime,
+//                 $lte: endDateTime
+//             }
+//         });
+
+//         const result = { data: enrolledData, total: totalCount, page, limit };
+
+//         return res.status(200).json(result);
+
+//     } catch (error) {
+//         console.error("touristFootfallData error:", error);
+//         return res.status(500).json({ success: false, err: "Something went wrong" });
+//     }
+// };
+
+
 const touristFootfallDate = async (req, res) => {
     const hotelId = req.body?.id;
     const limit = Number(req.body?.limit) || 10;
@@ -931,39 +981,106 @@ const touristFootfallDate = async (req, res) => {
     const endDate = req.body?.endDate;
     const skip = (page - 1) * limit;
 
-    if (!hotelId || !startDate || !endDate) {
+    if (!startDate || !endDate) {
         return res.status(500).json({ err: "fill the required" })
     }
 
     try {
 
-        const startDateTime = `${startDate} 00:00:00`;
-        const endDateTime = `${endDate} 23:59:59`;
+        const start = new Date(startDate);
+        const end = new Date(endDate);
 
-        const enrolledData = await bookingModel.find({
-            booking_hotel_id: hotelId,
-            IsDel: '0',
-            booking_checkin_date_time: {
-                $gte: startDateTime,
-                $lte: endDateTime
-            }
-        })
-            .skip(skip)
-            .limit(limit)
-            .sort({ _id: -1 });
+        // build date array (YYYY-MM-DD)
+        const dateArray = [];
+        let currentDate = new Date(start);
 
-        const totalCount = await bookingModel.countDocuments({
-            booking_hotel_id: hotelId,
-            IsDel: '0',
-            booking_checkin_date_time: {
-                $gte: startDateTime,
-                $lte: endDateTime
-            }
+        while (currentDate <= end) {
+            dateArray.push(currentDate.toISOString().split("T")[0]);
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        let baseMatch = {
+            IsDel: "0",
+            ...(hotelId ? { booking_hotel_id: new mongoose.Types.ObjectId(String(hotelId)) } : {})
+        };
+
+        // Use string YYYY-MM-DD for range comparison after we compute onlyDate
+        const startStr = start.toISOString().split("T")[0];
+        const endStr = end.toISOString().split("T")[0];
+
+        const bookings = await bookingModel.aggregate([
+            { $match: baseMatch },
+
+            // Convert datetime string to Date then to YYYY-MM-DD string
+            {
+                $addFields: {
+                    onlyDate: {
+                        $dateToString: {
+                            format: "%Y-%m-%d",
+                            // If your field is already a date type you can omit $toDate
+                            date: { $toDate: "$booking_checkin_date_time" }
+                        }
+                    }
+                }
+            },
+
+            // Filter by onlyDate range (works with YYYY-MM-DD strings)
+            {
+                $match: {
+                    onlyDate: { $gte: startStr, $lte: endStr }
+                }
+            },
+
+            // Group by onlyDate (NOT raw datetime)
+            {
+                $group: {
+                    _id: "$onlyDate",
+                    totalGuests: { $sum: { $toInt: "$booking_number_of_guest" } },
+                    totalAmount: { $sum: { $toDouble: "$booking_bill_amount" } },
+                    activeHotelIds: { $addToSet: "$booking_hotel_id" }
+                }
+            },
+
+            {
+                $addFields: {
+                    activeHotelCount: { $size: "$activeHotelIds" }
+                }
+            },
+
+            {
+                $project: {
+                    _id: 1,
+                    totalGuests: 1,
+                    totalAmount: 1,
+                    activeHotelCount: 1
+                }
+            },
+
+            // optional: sort by date ascending
+            { $sort: { _id: 1 } }
+        ]);
+
+        // Map dates to results, match by exact YYYY-MM-DD (no split)
+        const fullResult = dateArray.map(date => {
+            const booking = bookings.find(b => b._id === date);
+            return {
+                booking_checkin_date_time: date,
+                booking_number_of_guest: booking ? booking.totalGuests : 0,
+                totalAmount: booking ? booking.totalAmount : 0,
+                activeHotelCount: booking ? booking.activeHotelCount : 0
+            };
         });
 
-        const result = { data: enrolledData, total: totalCount, page, limit };
+        // Pagination
+        const paginatedResult = fullResult.slice(skip, skip + limit);
 
-        return res.status(200).json(result);
+        return res.status(200).json({
+            total: fullResult.length,
+            page,
+            limit,
+            data: paginatedResult
+        });
+
 
     } catch (error) {
         console.error("touristFootfallData error:", error);
@@ -1367,7 +1484,7 @@ const getHotelWithEnrolledData = async (req, res) => {
     const page = parseInt(req.body?.page ?? 1);
     const skip = (page - 1) * limit;
     const { startDate, endDate, hotelId, month, year } = req.body;
-    
+
     try {
         // Build dynamic match filter
         const matchFilter = { IsDel: "0" };
@@ -1386,9 +1503,12 @@ const getHotelWithEnrolledData = async (req, res) => {
         }
 
         if (month && year) {
+            // matchFilter.booking_checkin_date_time = {
+            //     $gte: `${year}-${month}-01`,
+            //     $lte: `${year}-${month}-31`
+            // };
             matchFilter.booking_checkin_date_time = {
-                $gte: `${year}-${month}-01`,
-                $lte: `${year}-${month}-31`
+                $regex: `^${year}-${month.padStart(2, '0')}`
             };
         }
 
@@ -1396,6 +1516,8 @@ const getHotelWithEnrolledData = async (req, res) => {
         if (hotelId) {
             matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
         }
+
+        console.log(matchFilter)
 
         // Main aggregation with pagination
         const bookings = await bookingModel.aggregate([

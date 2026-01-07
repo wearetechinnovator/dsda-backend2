@@ -1486,6 +1486,8 @@ const getHotelWithEnrolledData = async (req, res) => {
     const { startDate, endDate, hotelId, month, year } = req.body;
 
     try {
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
         // Build dynamic match filter
         const matchFilter = { IsDel: "0" };
 
@@ -1495,18 +1497,16 @@ const getHotelWithEnrolledData = async (req, res) => {
                 matchFilter.booking_checkin_date_time = { $regex: `^${startDate}` };
             } else {
                 matchFilter.booking_checkin_date_time = {
-                    $gte: new Date(startDate).toISOString().split("T")[0],
-                    $lte: new Date(endDate).toISOString().split("T")[0],
+                    // $gte: new Date(startDate).toISOString().split("T")[0],
+                    // $lte: new Date(endDate).toISOString().split("T")[0],
+                    $gte: startDateTime,
+                    $lte: endDateTime
                 };
             }
 
         }
 
         if (month && year) {
-            // matchFilter.booking_checkin_date_time = {
-            //     $gte: `${year}-${month}-01`,
-            //     $lte: `${year}-${month}-31`
-            // };
             matchFilter.booking_checkin_date_time = {
                 $regex: `^${year}-${month.padStart(2, '0')}`
             };

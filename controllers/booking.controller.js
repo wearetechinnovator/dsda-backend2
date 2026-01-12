@@ -15,6 +15,23 @@ const addBooking = async (req, res) => {
         guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck, hotelName
     } = req.body;
 
+
+    // =========== [Check Booking Permission active or not] ============
+    // Get Settings;
+    let getSiteSettingforCheck = await fetch(process.env.MASTER_API + "/site-setting/get", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ token: token })
+    })
+    getSiteSettingforCheck = await getSiteSettingforCheck.json();
+
+    if (!getSiteSettingforCheck.booking_oparetion) {
+        return res.status(400).json({ err: "Booking is temporarily unavailable. Please try again later." });
+    }
+
+
     // ======================= [Mobile Number Exsistance checking] ====================;
     if (existsCheck && mobileNumber && NumberOfGuest) {
         if (!/^[1-9]\d*$/.test(String(NumberOfGuest))) {

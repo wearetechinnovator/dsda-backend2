@@ -1534,7 +1534,7 @@ const getHotelWithEnrolledData = async (req, res) => {
             matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
         }
 
-        console.log(matchFilter)
+ 
 
         // Main aggregation with pagination
         const bookings = await bookingModel.aggregate([

@@ -15,6 +15,12 @@ const addBooking = async (req, res) => {
         guestList, hotelId, token, checkoutDate, checkoutTime, existsCheck, hotelName
     } = req.body;
 
+    const sizeInBytes = Number(req.headers["content-length"] || 0);
+
+    console.log("JSON size (bytes):", sizeInBytes);
+    console.log("JSON size (MB):", (sizeInBytes / 1024 / 1024).toFixed(2));
+
+
 
     // =========== [Check Booking Permission active or not] ============
     // Get Settings;
@@ -1534,7 +1540,7 @@ const getHotelWithEnrolledData = async (req, res) => {
             matchFilter.booking_hotel_id = new mongoose.Types.ObjectId(hotelId);
         }
 
- 
+
 
         // Main aggregation with pagination
         const bookings = await bookingModel.aggregate([

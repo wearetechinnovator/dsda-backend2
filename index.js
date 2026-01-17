@@ -28,8 +28,8 @@ app.use(cors({
 //         return false;
 //     }
 // }));
-app.use(express.json({ limit: '800mb' }));
-app.use(express.urlencoded({ limit: '800mb', extended: true }));
+app.use(express.json({ limit: '1gb' }));
+app.use(express.urlencoded({ limit: '1gb', extended: true }));
 
 
 // test only (remove in production)

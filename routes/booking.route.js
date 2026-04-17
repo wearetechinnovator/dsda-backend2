@@ -12,7 +12,8 @@ const {
     getTotalAmountHotelId,
     getPublicBookingDetails,
     deleteBooking,
-    getActiveBookingCountByHotel
+    getActiveBookingCountByHotel,
+    touristFootfalAllDayWise
 } = require('../controllers/booking.controller')
 const middleware = require("../middleware/middleware");
 
@@ -54,6 +55,10 @@ router
 router
     .route("/tourist-data/footfall-daywise")
     .post(middleware, touristFootfalDayWise);
+
+router
+    .route("/tourist-data/footfall-daywis/all")
+    .post(middleware, touristFootfalAllDayWise);
 
 
 router

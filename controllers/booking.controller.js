@@ -1239,6 +1239,215 @@ const touristFootfalDayWise = async (req, res) => {
 };
 
 
+// Daywise Tourist Footfall with all hotels (all overall)
+const touristFootfalAllDayWise = async (req, res) => {
+    const limit = Number(req.body?.limit) || 10;
+    const page = Number(req.body?.page) || 1;
+    const skip = (page - 1) * limit;
+
+    const {
+        hotelId,
+        startDate,
+        endDate,
+        zone,
+        sector,
+        block,
+        district,
+        policeStation,
+        token
+    } = req.body;
+
+    try {
+        const startDateTime = `${startDate} 00:00:00`;
+        const endDateTime = `${endDate} 23:59:59`;
+
+        // 1. Get setting
+        const getAdminSetting = await fetch(`${process.env.MASTER_API}/site-setting/get`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hotelToken: token })
+        });
+
+        const settingData = await getAdminSetting.json();
+        const adultAge = parseFloat(settingData?.age_for_charges || 18);
+
+        // 2. Get ALL hotels first (important for 0-footfall inclusion)
+        const hotelFilter = {
+            zone: zone || undefined,
+            sector: sector || undefined,
+            block: block || undefined,
+            policeStation: policeStation || undefined,
+            district: district || undefined,
+            limit: 900000000,
+            hotelToken: token
+        };
+
+        const hotelListReq = await fetch(`${process.env.MASTER_API}/hotel/get`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(hotelFilter)
+        });
+
+        const hotelListRes = await hotelListReq.json();
+        const hotels = hotelListRes.data || [];
+
+        const hotelIds = hotels.map(h => new mongoose.Types.ObjectId(String(h._id)));
+
+        // 3. Build booking match
+        let matchStage = {
+            IsDel: "0",
+            booking_details_hotel_id: { $in: hotelIds }
+        };
+
+        if (startDate && endDate) {
+            matchStage.booking_details_checkin_date_time = {
+                $gte: startDateTime,
+                $lte: endDateTime
+            };
+        }
+
+        if (hotelId) {
+            matchStage.booking_details_hotel_id = new mongoose.Types.ObjectId(String(hotelId));
+        }
+
+        // 4. Aggregate booking stats
+        const bookingStats = await bookingDetailsModel.aggregate([
+            { $match: matchStage },
+            {
+                $group: {
+                    _id: "$booking_details_hotel_id",
+
+                    totalMale: {
+                        $sum: {
+                            $cond: [{ $eq: ["$booking_details_guest_gender", "Male"] }, 1, 0]
+                        }
+                    },
+
+                    totalFemale: {
+                        $sum: {
+                            $cond: [{ $eq: ["$booking_details_guest_gender", "Female"] }, 1, 0]
+                        }
+                    },
+
+                    totalOtherGender: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $ne: ["$booking_details_guest_gender", "Male"] },
+                                        { $ne: ["$booking_details_guest_gender", "Female"] }
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+
+                    totalAdult: {
+                        $sum: {
+                            $cond: [
+                                { $gt: [{ $toDouble: "$booking_details_guest_age" }, adultAge] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+
+                    totalChild: {
+                        $sum: {
+                            $cond: [
+                                { $lte: [{ $toDouble: "$booking_details_guest_age" }, adultAge] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+
+                    totalForeigner: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$booking_details_guest_nationality", "foreign"] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+
+                    totalIndian: {
+                        $sum: {
+                            $cond: [
+                                { $in: ["$booking_details_guest_nationality", ["india", ""]] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+
+                    totalFootFall: { $sum: 1 },
+
+                    totalAmenitiesCharges: {
+                        $sum: {
+                            $toDouble: "$booking_details_charge_amount_for_this_guest"
+                        }
+                    }
+                }
+            }
+        ]);
+
+        // 5. Convert stats to map
+        const statsMap = new Map();
+        bookingStats.forEach(item => {
+            statsMap.set(String(item._id), item);
+        });
+
+        // 6. Merge hotels + stats (IMPORTANT: includes 0 footfall)
+        let resultData = hotels.map(hotel => {
+            const stats = statsMap.get(String(hotel._id)) || {};
+
+            return {
+                hotelId: hotel._id,
+
+                totalMale: stats.totalMale || 0,
+                totalFemale: stats.totalFemale || 0,
+                totalOtherGender: stats.totalOtherGender || 0,
+                totalAdult: stats.totalAdult || 0,
+                totalChild: stats.totalChild || 0,
+                totalForeigner: stats.totalForeigner || 0,
+                totalIndian: stats.totalIndian || 0,
+                totalFootFall: stats.totalFootFall || 0,
+                totalAmenitiesCharges: stats.totalAmenitiesCharges || 0,
+
+                hotel_details: hotel
+            };
+        });
+
+        // 7. If single hotel filter applied
+        if (hotelId) {
+            resultData = resultData.filter(r => String(r.hotelId) === String(hotelId));
+        }
+
+        // 8. Pagination (AFTER merge)
+        const total = resultData.length;
+        const paginated = resultData.slice(skip, skip + limit);
+
+        res.status(200).json({
+            data: paginated,
+            total,
+            page,
+            limit
+        });
+
+    } catch (error) {
+        console.error("touristFootfallData error:", error);
+        res.status(500).json({
+            success: false,
+            err: "Something went wrong"
+        });
+    }
+};
+
+
 // Update Checkout Date Time for Booking Details
 const updateCheckoutDateTime = async (req, res) => {
     try {
@@ -1719,5 +1928,6 @@ module.exports = {
     getTotalAmountHotelId,
     getPublicBookingDetails,
     autoChekout,
-    getActiveBookingCountByHotel
+    getActiveBookingCountByHotel,
+    touristFootfalAllDayWise
 }

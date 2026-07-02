@@ -92,11 +92,7 @@ const addBooking = async (req, res) => {
             },
             body: JSON.stringify({ token: token })
         })
-        getSiteSetting = await getSiteSetting.json();
-        
-        // Remove this after some days;
-        // if (checkInDate >= '2026-07-01') getSiteSetting.charges_per_tourist = "0";
-
+        getSiteSetting = await getSiteSetting.json(); 
 
 
         // Get Number of Guest and Total  Amount
